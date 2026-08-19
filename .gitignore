@@ -1,0 +1,64 @@
+# Node modules
+node_modules/
+
+# Compilation output
+dist/
+evoting-system-main/
+
+# pnpm deploy output
+bundle
+
+# Hardhat Build Artifacts
+artifacts
+
+# Hardhat compilation (v2) support directory
+cache
+
+# Typechain output
+types
+
+# Environment files
+.env
+.env.*
+!.env.example
+backend-api/.env
+frontend/.env
+
+# Local Technical Documentation & Walkthroughs (Internal)
+documentation.md
+walkthrough.md
+
+# Hardhat coverage reports
+coverage
+
+# Gas snapshot files
+.gas-snapshot
+
+# Snapshot cheatcodes output
+snapshots
+
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
