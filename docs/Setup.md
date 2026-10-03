@@ -1,13 +1,8 @@
 # Backend setup
 
-## TOTP Setup
-1. Run this command project root folder
+## Admin setup
 
-```sh
-node backend-api/utils/speakeasy.js
-```
-
-2. scan the output qr in any Totp authenticator app and update the TOTP_SECRET in .env
+Create an admin (password + authenticator app TOTP) with `npm run admin:create` in `backend-api/`. The TOTP secret is shown once as a QR code. There is no environment TOTP secret and no default admin.
 
 ## Admin Details in MongoDB
 

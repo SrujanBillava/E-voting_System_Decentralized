@@ -9,6 +9,8 @@
 [![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://mongodb.com/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
+> **Status:** VoteChain V2 is under active development. The current codebase uses the V2 backend/contract architecture; some older frontend documentation (and the legacy React screens) may not yet reflect the final implementation.
+
 > **Vote from Anywhere. Counted on Blockchain. Verified Privately.**
 
 A next-generation, decentralized electronic voting application (DApp) combining a secure **Web2 identity and constituency plane** with an immutable **Ethereum Web3 state ledger**.
@@ -141,19 +143,11 @@ cd ../backend-api
 # Install dependencies
 npm install
 
-# Create/verify backend-api/.env
-PORT=5000
-NODE_ENV=development
-MONGO_URI=mongodb://127.0.0.1:27017/evoting
-CLIENT_URL=http://localhost:5173
-ADMIN_USERNAME=admin
-TOTP_SECRET=JBSWY3DPEHPK3PXP
-JWT_ACCESS_SECRET=evoting_admin_access_secret_super_secure_key_2026_jwt
-JWT_REFRESH_SECRET=evoting_admin_refresh_secret_super_secure_key_2026_jwt
-VOTER_JWT_SECRET=evoting_voter_secret_super_secure_key_2026_jwt
+# Create backend-api/.env for local development (see backend-api/.env.example)
+npm run init:env
 
-# Seed demo voters into MongoDB
-node seed.js
+# Create an admin account (prints a TOTP QR once; there is no signup endpoint)
+npm run admin:create
 
 # Start backend server (Terminal 2)
 node server.js
@@ -182,14 +176,10 @@ Open [`http://localhost:5175`](http://localhost:5175) in your browser.
 
 ---
 
-## 🔑 Demo Credentials
+## 🔑 Credentials
 
-| Portal | Route | Username / Email | Password / TOTP | Details |
-| :--- | :--- | :--- | :--- | :--- |
-| **Admin Portal** | `/admin/login` | `admin` | `123456` | 2FA Secret: `JBSWY3DPEHPK3PXP` |
-| **Voter (Bengaluru)**| `/login` | `aarav@bengaluru.in` | `password123` | Quick-fill button on UI |
-| **Voter (Delhi)** | `/login` | `pooja@delhi.in` | `password123` | Quick-fill button on UI |
-| **Voter (Mumbai)** | `/login` | `rahul@mumbai.in` | `password123` | Quick-fill button on UI |
+There are no built-in demo credentials. Admins are created with `npm run admin:create` (password + authenticator app).
+Voters are created by an admin through the admin API. The old V1 demo logins and shared secrets no longer exist.
 
 ---
 
