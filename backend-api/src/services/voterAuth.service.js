@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { SESSION_ABSOLUTE_MS, SESSION_IDLE_MS, STAGE_TTL_MS, STAGES, canTransition } from "../auth/voterStages.js";
+import { CLOSED_OK_STAGES, SESSION_ABSOLUTE_MS, SESSION_IDLE_MS, STAGE_TTL_MS, STAGES, canTransition } from "../auth/voterStages.js";
 import { AppError } from "../utils/errors.js";
 import { readPhaseName } from "./chainConfig.js";
 import { VOTER_ID_PATTERN } from "./voter.service.js";
@@ -18,10 +18,10 @@ export function createVoterAuthService({ Voter, VoterSession, chain, audit, now 
   const revoke = (filter) => VoterSession.updateMany({ ...filter, active: true }, { $set: { active: false, revokedAt: new Date(now()) } });
 
   /** The election must be Open for any voter activity; the contract is the source of truth. */
-  async function requireOpen() {
+  async function requireOpen({ closedOk = false } = {}) {
     const phase = await readPhaseName(chain);
     if (phase === "Setup") throw new AppError(409, "ELECTION_NOT_OPEN", "The election is not open yet");
-    if (phase === "Closed") throw new AppError(409, "ELECTION_CLOSED", "The election is closed");
+    if (phase === "Closed" && !closedOk) throw new AppError(409, "ELECTION_CLOSED", "The election is closed");
     return phase;
   }
 
@@ -81,7 +81,7 @@ export function createVoterAuthService({ Voter, VoterSession, chain, audit, now 
     },
 
     /** Validates the cookie token. Returns a minimal principal; throws 401 / 409 otherwise. */
-    async authenticate(token, { ip, requestId, touch = true } = {}) {
+    async authenticate(token, { ip, requestId, touch = true, allowClosed = false } = {}) {
       if (typeof token !== "string" || token.length < 20) throw unauthenticated();
       const session = await VoterSession.findOne({ tokenHash: sha256(token), active: true });
       if (!session) throw unauthenticated();
@@ -96,7 +96,9 @@ export function createVoterAuthService({ Voter, VoterSession, chain, audit, now 
         await revoke({ _id: session._id });
         throw unauthenticated();
       }
-      const phase = await requireOpen(); // ELECTION_CLOSED / ELECTION_NOT_OPEN end the journey
+      // ELECTION_CLOSED / ELECTION_NOT_OPEN end the journey. Receipt/recovery routes (allowClosed) keep working in a Closed
+      // election, but only for a session that already reached the chain: nobody can START or continue voting after close.
+      const phase = await requireOpen({ closedOk: allowClosed && CLOSED_OK_STAGES.includes(session.stage) });
       // Meaningful actions extend the idle window; passive polling (touch: false) must not.
       if (touch) await VoterSession.updateOne({ _id: session._id }, { $set: { lastActivityAt: new Date(now()) } });
       return { sessionId: String(session._id), voterDbId: String(voter._id), stage: session.stage, stageExpiresAt: session.stageExpiresAt, sessionExpiresAt: session.absoluteExpiresAt, voter: toSafeVoter(voter), electionPhase: phase };
@@ -111,6 +113,17 @@ export function createVoterAuthService({ Voter, VoterSession, chain, audit, now 
     async transitionStage({ sessionId, from, to, expiresAt }) {
       if (!canTransition(from, to)) throw new Error(`illegal stage transition ${from} -> ${to}`);
       const res = await VoterSession.updateOne({ _id: sessionId, stage: from, active: true }, { $set: { stage: to, stageExpiresAt: expiresAt, lastActivityAt: new Date(now()) } });
+      return res.modifiedCount === 1;
+    },
+
+    /**
+     * Receipt recovery for a voter whose ballot is ALREADY on-chain (re-login after the receipt screen was lost). The session has
+     * passed biometrics (FACE_VERIFIED or later) and the caller has verified the evidence; this jumps straight to COMPLETED.
+     * AUTHENTICATED is deliberately excluded: face verification is never skipped. Returns true for the single winner.
+     */
+    async recoverToCompleted({ sessionId, expiresAt }) {
+      const from = [STAGES.FACE_VERIFIED, STAGES.ELIGIBLE];
+      const res = await VoterSession.updateOne({ _id: sessionId, stage: { $in: from }, active: true }, { $set: { stage: STAGES.COMPLETED, stageExpiresAt: expiresAt, lastActivityAt: new Date(now()) } });
       return res.modifiedCount === 1;
     },
   };

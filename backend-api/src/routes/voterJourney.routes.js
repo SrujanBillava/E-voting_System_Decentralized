@@ -10,7 +10,7 @@ const Authorize = z.strictObject({ candidateId: z.string().regex(/^[1-9][0-9]{0,
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,64}$/;
 
 /** Voting-journey steps after login. Each declares the stage it needs; none accepts client-chosen identity. */
-export function createVoterJourneyRouter({ authService, eligibilityService, authorizationService, castService, config }) {
+export function createVoterJourneyRouter({ authService, eligibilityService, authorizationService, castService, receiptService, config }) {
   const router = Router();
   const session = requireVoterSession(authService, config);
   const ctxOf = (req) => ({ ip: req.ip, requestId: req.id });
@@ -44,6 +44,16 @@ export function createVoterJourneyRouter({ authService, eligibilityService, auth
       const key = req.get("idempotency-key");
       if (!key || !IDEMPOTENCY_KEY.test(key)) throw new AppError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required");
       const out = await castService.cast(req.voterSession, { idempotencyKey: key }, ctxOf(req));
+      res.status(out.http).json({ data: out.body });
+    });
+  }
+
+  if (receiptService) {
+    // Receipt / recovery: unlike every voting action it also works once the election is Closed (for a vote that already reached the chain).
+    const receiptSession = requireVoterSession(authService, config, { allowClosed: true });
+    router.get("/receipt", receiptSession, requireVoterStage(STAGES.AUTH_ISSUED, STAGES.SUBMITTED, STAGES.COMPLETED), async (req, res) => {
+      parse(Nothing, req.query);
+      const out = await receiptService.get(req.voterSession, ctxOf(req));
       res.status(out.http).json({ data: out.body });
     });
   }

@@ -12,7 +12,7 @@ const unavailable = () => new AppError(503, "CHAIN_UNAVAILABLE", "The blockchain
  * voter's Mongo record and the contract: the client supplies no uid, nullifier, constituency or status.
  * Chain failures fail CLOSED (nothing is assumed, nothing transitions).
  */
-export function createEligibilityService({ Voter, authService, chain, nullifierSecret, audit, now = Date.now }) {
+export function createEligibilityService({ Voter, authService, chain, nullifierSecret, audit, receiptService, now = Date.now }) {
   const rec = (action, result, ctx, meta) => audit.record({ action, result, requestId: ctx.requestId, ip: ctx.ip, meta });
 
   async function loadVoterAndConstituency(principal, ctx, { withUid = false } = {}) {
@@ -40,7 +40,14 @@ export function createEligibilityService({ Voter, authService, chain, nullifierS
       }
       if (used) {
         await rec("VOTER_ALREADY_VOTED", "failure", ctx, { voterId: voter.voterId, constituencyCode: constituency.code });
-        throw new AppError(409, "ALREADY_VOTED", "A ballot has already been cast for this voter in this election");
+        // If this server holds the voter's own confirmed ticket and the chain evidence verifies, the receipt can be reached;
+        // otherwise it is a plain ALREADY_VOTED (no ownership of an arbitrary transaction is ever claimed).
+        const receiptAvailable = receiptService ? await receiptService.recoverAlreadyVoted(principal, ctx) : false;
+        throw new AppError(409, "ALREADY_VOTED", "A ballot has already been cast for this voter in this election", { details: receiptAvailable ? { receiptAvailable, stage: STAGES.COMPLETED } : { receiptAvailable } });
+      }
+
+      if (receiptService && (await receiptService.voteInFlight(principal))) {
+        throw new AppError(409, "VOTE_IN_FLIGHT", "Your vote has been submitted and is being confirmed; please check again shortly", { details: { voteInFlight: true } });
       }
 
       let stageExpiresAt = principal.stageExpiresAt;

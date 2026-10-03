@@ -13,7 +13,7 @@ export function createVoterRouter({ authService, config, loginRateLimit = { wind
   const cookie = voterCookieName(config);
   const options = (maxAge) => ({ httpOnly: true, secure: config.isProduction, sameSite: "strict", path: "/", ...(maxAge ? { maxAge } : {}) });
   const limiter = rateLimit({ ...loginRateLimit, standardHeaders: true, legacyHeaders: false, handler: (_q, _r, next) => next(new AppError(429, "RATE_LIMITED", "Too many attempts, try again later")) });
-  const session = requireVoterSession(authService, config, { touch: false }); // /status is passive: it must not extend the idle window
+  const session = requireVoterSession(authService, config, { touch: false, allowClosed: true }); // /status is passive: it must not extend the idle window
 
   router.post("/auth/login", limiter, async (req, res) => {
     const { identifier, password } = parse(Login, req.body);

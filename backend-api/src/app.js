@@ -7,6 +7,7 @@ import { noStore } from "./middleware/noStore.js";
 import { notFound } from "./middleware/notFound.js";
 import { requestId } from "./middleware/requestId.js";
 import { requestLogger } from "./middleware/requestLogger.js";
+import { createPublicRouter } from "./routes/public.routes.js";
 import { createVoterJourneyRouter } from "./routes/voterJourney.routes.js";
 import { createVoterRouter } from "./routes/voter.routes.js";
 import { createAdminRouter } from "./routes/admin.routes.js";
@@ -19,7 +20,7 @@ import { AppError } from "./utils/errors.js";
  *
  * @param {{ config: { corsOrigins: readonly string[] }, logger: object, healthService: object }} deps
  */
-export function createApp({ config, logger, healthService, admin, voter, loginRateLimit, voterLoginRateLimit }) {
+export function createApp({ config, logger, healthService, admin, voter, publicService, loginRateLimit, voterLoginRateLimit, publicReceiptRateLimit }) {
   const app = express();
   app.disable("x-powered-by");
   app.set("etag", false);
@@ -53,7 +54,8 @@ export function createApp({ config, logger, healthService, admin, voter, loginRa
 
   app.use("/api/v1", createApiRouter({ healthService }));
   if (voter) app.use("/api/v1/voter", createVoterRouter({ authService: voter.authService, config, loginRateLimit: voterLoginRateLimit }));
-  if (voter?.eligibilityService) app.use("/api/v1/voter", createVoterJourneyRouter({ authService: voter.authService, eligibilityService: voter.eligibilityService, authorizationService: voter.authorizationService, castService: voter.castService, config }));
+  if (voter?.eligibilityService) app.use("/api/v1/voter", createVoterJourneyRouter({ authService: voter.authService, eligibilityService: voter.eligibilityService, authorizationService: voter.authorizationService, castService: voter.castService, receiptService: voter.receiptService, config }));
+  if (publicService) app.use("/api/v1/public", createPublicRouter({ publicService, receiptRateLimit: publicReceiptRateLimit }));
   if (admin) app.use("/api/v1/admin", createAdminRouter({ ...admin, config, loginRateLimit }));
 
   app.use(notFound);

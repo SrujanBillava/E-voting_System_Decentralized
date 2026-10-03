@@ -10,6 +10,7 @@ export function createAuditService({ AuditLog, logger, now = Date.now }) {
     const out = {};
     for (const [k, v] of Object.entries(meta)) {
       if (!META_KEYS.has(k)) continue;
+      if (k === "candidateId" && meta.voterId !== undefined) continue; // a voter identity and a candidate never share an audit row
       if (Array.isArray(v)) out[k] = v.filter((x) => typeof x === "string").slice(0, 30).map((x) => x.slice(0, 80));
       else if (["string", "number", "boolean"].includes(typeof v)) out[k] = typeof v === "string" ? v.slice(0, 200) : v;
     }

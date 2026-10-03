@@ -20,6 +20,8 @@ import { VoteTicket } from "./models/VoteTicket.js";
 import { createRelayerQueue } from "./chain/relayerQueue.js";
 import { createAuthorizationService } from "./services/authorization.service.js";
 import { createCastService } from "./services/cast.service.js";
+import { createPublicService } from "./services/public.service.js";
+import { createReceiptService } from "./services/receipt.service.js";
 import { createEligibilityService } from "./services/eligibility.service.js";
 import { createVoterAuthService } from "./services/voterAuth.service.js";
 import { createVoterService } from "./services/voter.service.js";
@@ -83,10 +85,13 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
     const voterWiring = (a) => {
       const authService = createVoterAuthService({ Voter, VoterSession, chain, audit: a });
       const relayerQueue = createRelayerQueue();
-      return { authService, authorizationService: createAuthorizationService({ Voter, VoteTicket, authService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a }), castService: createCastService({ Voter, VoteTicket, authService, chain, relayerQueue, audit: a }), eligibilityService: createEligibilityService({ Voter, authService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a }) };
+      const castService = createCastService({ Voter, VoteTicket, authService, chain, relayerQueue, audit: a });
+      const receiptService = createReceiptService({ Voter, VoteTicket, authService, castService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a });
+      return { authService, castService, receiptService, authorizationService: createAuthorizationService({ Voter, VoteTicket, authService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a }), eligibilityService: createEligibilityService({ Voter, authService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a, receiptService }) };
     };
     const voter = voterWiring(audit);
-    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService }, voter });
+    const publicService = createPublicService({ chain, audit });
+    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService }, voter, publicService });
 
     // Recovery sweep: completes votes whose voter can no longer ask (session expired, backend restarted, election closed).
     const sweep = () => voter.castService.recoverPending().catch((err) => logger.warn({ err }, "recovery sweep failed"));
