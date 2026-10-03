@@ -40,9 +40,10 @@ export function createErrorHandler({ logger }) {
       let status = 500;
       let code = "INTERNAL_ERROR";
       let message = "Internal server error";
+      let details;
 
       if (err instanceof AppError) {
-        ({ status, code, message } = err);
+        ({ status, code, message, details } = err);
       } else {
         const mapped = BODY_PARSER_ERRORS.get(err?.type) ?? clientErrorOf(err);
         if (mapped) [status, code, message] = mapped;
@@ -50,7 +51,7 @@ export function createErrorHandler({ logger }) {
 
       if (status >= 500) logger.error({ requestId: req.id, method: req.method, path: req.path, err }, "unhandled error");
 
-      res.status(status).json({ error: { code, message, requestId: req.id } });
+      res.status(status).json({ error: { code, message, ...(details ? { details } : {}), requestId: req.id } });
     } catch {
       try {
         res.status(500).type("application/json").send(FALLBACK_BODY);

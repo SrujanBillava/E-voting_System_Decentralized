@@ -26,6 +26,7 @@ export function createChainServices(config, { rpcTimeoutMs } = {}) {
     contract,
     signers,
     domain,
+    confirmations: config.chain.confirmations ?? 1,
     destroy: () => provider.destroy(),
   };
 }

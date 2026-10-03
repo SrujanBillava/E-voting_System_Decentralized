@@ -25,7 +25,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  *
  * Safety layers, all required: (1) atomic Mongo state changes on the single VoteTicket, fenced by a per-claim token so a
  * stale request can never write over a newer one, (2) one relayer queue so nonces are never raced, (3) the contract's
- * nullifier. The signature, the raw transaction and the candidate never leave the server, and nothing here logs them.
+ * nullifier. The signature, the raw transaction and the candidate are never returned by the API or logged (the candidate and the transaction do reach the public chain in plaintext).
  * The candidate ALWAYS comes from the stored ticket.
  *
  * Nonce handling: the provider's PENDING transaction count, read inside the relayer queue immediately before signing, and
@@ -70,6 +70,16 @@ export function createCastService({ Voter, VoteTicket, authService, chain, relay
       try { used = await chain.contract.nullifierUsed(ticket.nullifier); } catch { throw unavailable(); }
       throw await fail(ticket, used ? "RECONCILIATION_REQUIRED" : "TX_REVERTED", ctx, used ? reconciliation() : new AppError(502, "TX_REVERTED", "The vote transaction was reverted"));
     }
+    // Not final before the configured number of confirmations: the ticket stays SUBMITTED and a later call completes it.
+    const required = chain.confirmations ?? 1;
+    if (required > 1) {
+      let head;
+      try { head = await chain.provider.getBlockNumber(); } catch { throw unavailable(); }
+      if (head - receipt.blockNumber + 1 < required) {
+        await markSubmitted(ticket);
+        return { ...(ticket.toObject?.() ?? ticket), status: S.SUBMITTED };
+      }
+    }
     const event = receipt.logs
       .filter((l) => l.address.toLowerCase() === contractAddress)
       .map((l) => { try { return chain.contract.interface.parseLog(l); } catch { return null; } })
@@ -89,8 +99,8 @@ export function createCastService({ Voter, VoteTicket, authService, chain, relay
     return done;
   }
 
-  async function waitForReceipt(txHash) {
-    const stop = waitNow() + receiptTimeoutMs;
+  async function waitForReceipt(txHash, timeoutMs = receiptTimeoutMs) {
+    const stop = waitNow() + timeoutMs;
     for (;;) {
       let receipt;
       try { receipt = await chain.provider.getTransactionReceipt(txHash); } catch { throw unavailable(); }
@@ -100,8 +110,8 @@ export function createCastService({ Voter, VoteTicket, authService, chain, relay
     }
   }
   /** One wait for the receipt, then verify. Without a receipt the (still SUBMITTED) ticket is returned. */
-  async function confirm(ticket, ctx) {
-    const receipt = await waitForReceipt(ticket.txHash);
+  async function confirm(ticket, ctx, timeoutMs) {
+    const receipt = await waitForReceipt(ticket.txHash, timeoutMs);
     return receipt ? verifyReceipt(ticket, receipt, ctx) : ticket;
   }
 
@@ -130,6 +140,19 @@ export function createCastService({ Voter, VoteTicket, authService, chain, relay
     if (done) await rec("VOTE_CONFIRMED", "success", ctx, {}, ticket.lastTxHash);
     return done;
   }
+
+  /** A FAILED ticket may be a false alarm (lagging RPC): look at the evidence again. Returns the healed ticket, or null. */
+  async function heal(ticket, ctx) {
+    if (ticket.failureCode !== "RECONCILIATION_REQUIRED") return null;
+    if (!ticket.txHash && ticket.lastTxHash) return confirmFromDiscardedTx(ticket, ctx); // the discarded transaction did mine after all
+    if (ticket.txHash) {
+      let receipt = null;
+      try { receipt = await chain.provider.getTransactionReceipt(ticket.txHash); } catch { /* keep the alarm */ }
+      if (receipt) return verifyReceipt(ticket, receipt, ctx);
+    }
+    return null;
+  }
+  const failedError = (ticket) => (ticket.failureCode === "RECONCILIATION_REQUIRED" ? reconciliation() : new AppError(409, ticket.failureCode ?? "VOTE_FAILED", "This vote attempt failed"));
 
   /** Fresh submission by the holder of the SUBMITTING claim. Anything failing before the broadcast leaves the voter retryable. */
   async function submitFresh(ticket, principal, ctx, voter) {
@@ -215,7 +238,7 @@ export function createCastService({ Voter, VoteTicket, authService, chain, relay
   }
 
   /** Recover a ticket that already has transaction evidence. Returns the ticket, or null if it was reset and may be retried. */
-  async function reconcile(ticket, principal, ctx) {
+  async function reconcile(ticket, principal, ctx, timeoutMs) {
     let receipt;
     let tx;
     try {
@@ -231,13 +254,15 @@ export function createCastService({ Voter, VoteTicket, authService, chain, relay
     if (tx) {
       await markSubmitted(ticket);
       await ensureSubmitted(principal);
-      return confirm({ ...ticket.toObject?.() ?? ticket, status: S.SUBMITTED }, ctx);
+      return confirm({ ...ticket.toObject?.() ?? ticket, status: S.SUBMITTED }, ctx, timeoutMs);
     }
     // Unknown to the node.
     let used;
     let latestNonce;
     let head;
+    let closed;
     try {
+      closed = Number(await chain.contract.phase()) === 2;
       used = await chain.contract.nullifierUsed(ticket.nullifier);
       latestNonce = await chain.provider.getTransactionCount(chain.signers.addresses.relayer, "latest");
       head = await chain.provider.getBlock("latest");
@@ -256,7 +281,7 @@ export function createCastService({ Voter, VoteTicket, authService, chain, relay
     }
     // The chain's own clock decides: block timestamps only grow, so once the head is past the deadline the old transaction can never succeed.
     const deadlinePassed = ticket.authDeadline !== null && head.timestamp > ticket.authDeadline;
-    if (latestNonce > ticket.nonce || deadlinePassed) {
+    if (latestNonce > ticket.nonce || deadlinePassed || closed) { // closed: rebroadcasting could only produce a revert
       const reset = await VoteTicket.updateOne({ _id: ticket._id, txHash: ticket.txHash, status: { $in: IN_FLIGHT } }, { $set: { status: S.AUTH_ISSUED, lockUntil: null, lastTxHash: ticket.txHash, txHash: null, nonce: null, rawTx: null, authDeadline: null, claimToken: null, authorizationExpiresAt: new Date(now() + AUTHORIZATION_TTL_MS) } });
       void reset;
       return null;
@@ -265,20 +290,20 @@ export function createCastService({ Voter, VoteTicket, authService, chain, relay
     await markSubmitted(ticket);
     await ensureSubmitted(principal);
     await rec("VOTE_SUBMITTED", "success", ctx, {}, ticket.txHash);
-    return confirm({ ...(ticket.toObject?.() ?? ticket), status: S.SUBMITTED }, ctx);
+    return confirm({ ...(ticket.toObject?.() ?? ticket), status: S.SUBMITTED }, ctx, timeoutMs);
   }
 
   /** Reconcile, and always free the takeover lock afterwards (even on error) so the voter is not blocked for LOCK_MS. */
-  async function reconcileLocked(ticket, principal, ctx) {
+  async function reconcileLocked(ticket, principal, ctx, timeoutMs) {
     try {
-      return await reconcile(ticket, principal, ctx);
+      return await reconcile(ticket, principal, ctx, timeoutMs);
     } finally {
       await unlock(ticket).catch(() => {});
     }
   }
 
-  async function settle(ticketId) {
-    const stop = waitNow() + receiptTimeoutMs;
+  async function settle(ticketId, timeoutMs = receiptTimeoutMs) {
+    const stop = waitNow() + timeoutMs;
     for (;;) {
       const t = await fresh(ticketId);
       if (t.status !== S.SUBMITTING || waitNow() >= stop) return t;
@@ -308,17 +333,9 @@ export function createCastService({ Voter, VoteTicket, authService, chain, relay
           return { http: 200, body: view(ticket) };
         }
         if (ticket.status === S.FAILED) {
-          if (ticket.failureCode === "RECONCILIATION_REQUIRED" && !ticket.txHash && ticket.lastTxHash) {
-            const healed = await confirmFromDiscardedTx(ticket, ctx); // the discarded transaction did mine after all
-            if (healed) { ticket = healed; continue; }
-          }
-          if (ticket.failureCode === "RECONCILIATION_REQUIRED" && ticket.txHash) {
-            // The alarm may have been caused by a lagging RPC: look at the evidence again before giving up.
-            let receipt = null;
-            try { receipt = await chain.provider.getTransactionReceipt(ticket.txHash); } catch { /* keep the alarm */ }
-            if (receipt) { ticket = await verifyReceipt(ticket, receipt, ctx); continue; }
-          }
-          throw ticket.failureCode === "RECONCILIATION_REQUIRED" ? reconciliation() : new AppError(409, ticket.failureCode ?? "VOTE_FAILED", "This vote attempt failed");
+          const healed = await heal(ticket, ctx);
+          if (healed) { ticket = healed; continue; }
+          throw failedError(ticket);
         }
 
         if (ticket.status === S.AUTH_ISSUED) {
@@ -357,6 +374,54 @@ export function createCastService({ Voter, VoteTicket, authService, chain, relay
         if (ticket.status === S.SUBMITTED) return { http: 202, body: view(ticket) };
       }
       return { http: 202, body: view(ticket) };
+    },
+
+    /**
+     * Recovery-only view of the voter's ticket: learns what became of a vote that already reached (or may have reached) the chain.
+     * It NEVER signs or broadcasts a new vote, so it is safe in any election phase. Works with an atomic takeover like cast().
+     * `state`: NONE | NOT_SUBMITTED | PENDING | CONFIRMED | NOT_RECORDED (a lost transaction was reset, nothing is on-chain).
+     */
+    async resolve(principal, ctx, { waitMs = 3000 } = {}) {
+      let ticket = await VoteTicket.findOne({ electionId: chain.deployment.electionId, voterId: principal.voterDbId }).select(SELECT);
+      if (!ticket) return { state: "NONE", ticket: null };
+      for (let pass = 0; pass < 4; pass++) {
+        const t = now();
+        if (ticket.status === S.CONFIRMED) {
+          await ensureSubmitted(principal);
+          return { state: "CONFIRMED", ticket };
+        }
+        if (ticket.status === S.FAILED) {
+          const healed = await heal(ticket, ctx);
+          if (healed) { ticket = healed; continue; }
+          throw failedError(ticket);
+        }
+        if (ticket.status === S.AUTH_ISSUED) {
+          if (!(ticket.lastTxHash && !ticket.txHash && ticket.submissionAttempts > 0)) return { state: "NOT_SUBMITTED", ticket };
+          // A reset ticket is reported as "not recorded" only if the nullifier is really unused: a lagging node may have hidden a mined ballot.
+          let used;
+          try { used = await chain.contract.nullifierUsed(ticket.nullifier); } catch { throw unavailable(); }
+          if (!used) return { state: "NOT_RECORDED", ticket };
+          const healed = await confirmFromDiscardedTx(ticket, ctx);
+          if (healed) { ticket = healed; continue; }
+          throw reconciliation();
+        }
+        if (ticket.status === S.SUBMITTING && ticket.lockUntil && ticket.lockUntil.getTime() > t) {
+          ticket = await settle(ticket._id, waitMs); // another request is working
+          if (ticket.status === S.SUBMITTING) return { state: "PENDING", ticket };
+          continue;
+        }
+        const takeover = await takeoverOf(ticket, t);
+        if (!takeover) { ticket = await settle(ticket._id, waitMs); continue; }
+        if (!takeover.txHash) { // claimed but never persisted a transaction: nothing was broadcast
+          await VoteTicket.updateOne({ _id: takeover._id, status: S.SUBMITTING, txHash: null, claimToken: takeover.claimToken }, { $set: { status: S.AUTH_ISSUED, lockUntil: null } });
+          return { state: "NOT_SUBMITTED", ticket: await fresh(ticket._id) };
+        }
+        const result = await reconcileLocked(takeover, principal, ctx, waitMs);
+        ticket = result ?? (await fresh(ticket._id));
+        if (!result) return { state: "NOT_RECORDED", ticket }; // reset: the transaction is gone and the ticket is back to AUTH_ISSUED
+        if (ticket.status === S.SUBMITTED) return { state: "PENDING", ticket };
+      }
+      return { state: "PENDING", ticket };
     },
 
     /**

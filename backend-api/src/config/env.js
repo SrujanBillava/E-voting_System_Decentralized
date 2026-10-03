@@ -129,6 +129,7 @@ const RAW = z.object({
   VOTING_CONTRACT_ADDRESS: address.optional(),
   ELECTION_ID: bytes32.optional(),
   DEPLOYMENT_METADATA_PATH: z.string().min(1).optional(),
+  CHAIN_CONFIRMATIONS: z.string().regex(/^[1-9][0-9]?$/, "must be an integer from 1 to 99").transform(Number).optional(),
 
   OWNER_PRIVATE_KEY: privateKey,
   AUTHORITY_PRIVATE_KEY: privateKey,
@@ -267,6 +268,7 @@ export function loadEnv(rawEnv) {
       contractAddress: env.VOTING_CONTRACT_ADDRESS,
       electionId: env.ELECTION_ID,
       deploymentMetadataPath: env.DEPLOYMENT_METADATA_PATH,
+      confirmations: env.CHAIN_CONFIRMATIONS ?? 1, // blocks (the receipt block included) before a ballot is called final
     }),
     signerAddresses: Object.freeze(signerAddresses),
   };
