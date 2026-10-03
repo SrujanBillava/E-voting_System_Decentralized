@@ -7,6 +7,7 @@ import { noStore } from "./middleware/noStore.js";
 import { notFound } from "./middleware/notFound.js";
 import { requestId } from "./middleware/requestId.js";
 import { requestLogger } from "./middleware/requestLogger.js";
+import { createVoterJourneyRouter } from "./routes/voterJourney.routes.js";
 import { createVoterRouter } from "./routes/voter.routes.js";
 import { createAdminRouter } from "./routes/admin.routes.js";
 import { createApiRouter } from "./routes/index.js";
@@ -52,6 +53,7 @@ export function createApp({ config, logger, healthService, admin, voter, loginRa
 
   app.use("/api/v1", createApiRouter({ healthService }));
   if (voter) app.use("/api/v1/voter", createVoterRouter({ authService: voter.authService, config, loginRateLimit: voterLoginRateLimit }));
+  if (voter?.eligibilityService) app.use("/api/v1/voter", createVoterJourneyRouter({ authService: voter.authService, eligibilityService: voter.eligibilityService, config }));
   if (admin) app.use("/api/v1/admin", createAdminRouter({ ...admin, config, loginRateLimit }));
 
   app.use(notFound);

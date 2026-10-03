@@ -102,6 +102,11 @@ export function createVoterAuthService({ Voter, VoterSession, chain, audit, now 
       return { sessionId: String(session._id), voterDbId: String(voter._id), stage: session.stage, stageExpiresAt: session.stageExpiresAt, sessionExpiresAt: session.absoluteExpiresAt, voter: toSafeVoter(voter), electionPhase: phase };
     },
 
+    async currentStage(sessionId) {
+      const s = await VoterSession.findOne({ _id: sessionId, active: true });
+      return s ? { stage: s.stage, stageExpiresAt: s.stageExpiresAt } : null;
+    },
+
     /** Atomic compare-and-set: succeeds only if the session is still in `from`. Returns true for the single winner. */
     async transitionStage({ sessionId, from, to, expiresAt }) {
       if (!canTransition(from, to)) throw new Error(`illegal stage transition ${from} -> ${to}`);
