@@ -15,6 +15,7 @@ import { Voter } from "./models/Voter.js";
 import { createOwnerQueue } from "./chain/ownerQueue.js";
 import { createBallotConfigService } from "./services/ballotConfig.service.js";
 import { VoterSession } from "./models/VoterSession.js";
+import { createEligibilityService } from "./services/eligibility.service.js";
 import { createVoterAuthService } from "./services/voterAuth.service.js";
 import { createVoterService } from "./services/voter.service.js";
 import { createElectionService } from "./services/election.service.js";
@@ -72,7 +73,11 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
     const voterService = createVoterService({ Voter, chain, audit });
     const configService = createBallotConfigService({ chain, audit, ownerQueue });
     const electionService = createElectionService({ chain, healthService, auth: authService, audit, ownerQueue, voterStats: () => voterService.stats() });
-    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService }, voter: { authService: createVoterAuthService({ Voter, VoterSession, chain, audit }) } });
+    const voterWiring = (a) => {
+      const authService = createVoterAuthService({ Voter, VoterSession, chain, audit: a });
+      return { authService, eligibilityService: createEligibilityService({ Voter, authService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a }) };
+    };
+    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService }, voter: voterWiring(audit) });
     return { app, config, logger, healthService, chain, mongo, preflight, close: release };
   } catch (err) {
     await release();

@@ -74,3 +74,13 @@ export async function readCandidates(contract, constituencies) {
   }
   return candidates;
 }
+
+/** All candidate ids of one constituency, ascending, read in pages. No tallies are touched. */
+export async function readCandidateIds(contract, constituencyId) {
+  const count = await contract.candidateCountOf(constituencyId);
+  const ids = [];
+  for (let offset = 0n; offset < count; offset += PAGE_SIZE) {
+    ids.push(...(await contract.getCandidateIdsByConstituency(constituencyId, offset, PAGE_SIZE)).map((c) => toSafeNumber(c, "candidateId")));
+  }
+  return ids.sort((a, b) => a - b);
+}
