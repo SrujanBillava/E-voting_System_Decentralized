@@ -28,7 +28,8 @@ const filled = template
   .replace(/^RELAYER_PRIVATE_KEY=.*$/m, `RELAYER_PRIVATE_KEY=${relayer.privateKey}`)
   .replace(/^NULLIFIER_SECRET=.*$/m, `NULLIFIER_SECRET=${crypto.randomBytes(32).toString("hex")}`)
   .replace(/^JWT_ACCESS_SECRET=.*$/m, `JWT_ACCESS_SECRET=${crypto.randomBytes(32).toString("hex")}`)
-  .replace(/^ADMIN_TOTP_ENCRYPTION_KEY=.*$/m, `ADMIN_TOTP_ENCRYPTION_KEY=${crypto.randomBytes(32).toString("hex")}`);
+  .replace(/^ADMIN_TOTP_ENCRYPTION_KEY=.*$/m, `ADMIN_TOTP_ENCRYPTION_KEY=${crypto.randomBytes(32).toString("hex")}`)
+  .replace(/^FACE_TEMPLATE_ENCRYPTION_KEY=.*$/m, `FACE_TEMPLATE_ENCRYPTION_KEY=${crypto.randomBytes(32).toString("hex")}`);
 
 // "wx": fail instead of following a symlink or overwriting a file that appeared since the check above.
 fs.writeFileSync(envPath, filled, { flag: "wx", mode: 0o600 });

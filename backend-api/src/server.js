@@ -11,6 +11,9 @@ import { AdminSession } from "./models/AdminSession.js";
 import { AuditLog } from "./models/AuditLog.js";
 import { createAdminAuthService } from "./services/adminAuth.service.js";
 import { createAuditService } from "./services/audit.service.js";
+import { FaceChallenge } from "./models/FaceChallenge.js";
+import { FaceTemplate } from "./models/FaceTemplate.js";
+import { createFaceService } from "./services/face.service.js";
 import { Voter } from "./models/Voter.js";
 import { createOwnerQueue } from "./chain/ownerQueue.js";
 import { createBallotConfigService } from "./services/ballotConfig.service.js";
@@ -72,7 +75,9 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
     const voterService = createVoterService({ Voter, chain, audit });
     const configService = createBallotConfigService({ chain, audit, ownerQueue });
     const electionService = createElectionService({ chain, healthService, auth: authService, audit, ownerQueue, voterStats: () => voterService.stats() });
-    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService }, voter: { authService: createVoterAuthService({ Voter, VoterSession, chain, audit }) } });
+    const voterAuthService = createVoterAuthService({ Voter, VoterSession, chain, audit });
+    const faceService = createFaceService({ Voter, VoterSession, FaceTemplate, FaceChallenge, authService: voterAuthService, chain, audit, templateKey: config.secrets.faceTemplateKey });
+    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService, faceService }, voter: { authService: voterAuthService, faceService } });
     return { app, config, logger, healthService, chain, mongo, preflight, close: release };
   } catch (err) {
     await release();
