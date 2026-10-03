@@ -5,6 +5,21 @@ import { createLogger, createMemoryLogger } from "../../src/utils/logger.js";
 
 const parse = (lines) => lines.map((l) => JSON.parse(l));
 
+describe("logger: long hex blobs", () => {
+  it("never writes a signed transaction / signature sized hex string, but keeps 32-byte hashes", () => {
+    const { logger, lines } = createMemoryLogger();
+    const rawTx = "0x02f9" + "ab".repeat(300);
+    const signature = "0x" + "cd".repeat(65);
+    const txHash = "0x" + "ef".repeat(32);
+    logger.error({ err: new Error(`broadcast failed transaction="${rawTx}" sig=${signature}`), note: signature }, `boom ${rawTx}`);
+    logger.info({ txHash }, "mined");
+    const text = lines.join("");
+    assert.ok(!text.includes("abababab") && !text.includes("cdcdcdcd"));
+    assert.match(text, /REDACTED_HEX/);
+    assert.ok(text.includes(txHash), "ordinary 32-byte hashes stay readable");
+  });
+});
+
 describe("logger", () => {
   it("writes JSON lines with time, level and message", () => {
     const { logger, lines } = createMemoryLogger();

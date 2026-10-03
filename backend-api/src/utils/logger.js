@@ -9,6 +9,7 @@ const SENSITIVE_KEY =
 // user:password@ inside any URL-looking string.
 const URL_CREDENTIALS = /([a-z][a-z0-9+.-]*:\/\/)([^\s/@:]+):([^\s/@]+)@/gi;
 
+const LONG_HEX = /0x[0-9a-fA-F]{100,}/g;
 const MAX_DEPTH = 6;
 const REDACTED = "[REDACTED]";
 
@@ -33,7 +34,8 @@ export function createLogger({ level = "info", stream = process.stdout, secrets 
     for (const matcher of matchers) {
       out = typeof matcher === "string" ? (out.includes(matcher) ? out.split(matcher).join(REDACTED) : out) : out.replace(matcher, REDACTED);
     }
-    return out.replace(URL_CREDENTIALS, `$1${REDACTED}@`);
+    // Signed transactions / signatures / calldata are long hex blobs (a hash is only 66 chars): never log them.
+    return out.replace(URL_CREDENTIALS, `$1${REDACTED}@`).replace(LONG_HEX, "[REDACTED_HEX]");
   };
 
   const sanitize = (value, depth, seen) => {

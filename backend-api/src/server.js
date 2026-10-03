@@ -1,6 +1,7 @@
 import http from "node:http";
 import { pathToFileURL } from "node:url";
 import dotenv from "dotenv";
+import mongoose from "mongoose";
 import { createApp } from "./app.js";
 import { createChainServices } from "./chain/index.js";
 import { runPreflight } from "./chain/preflight.js";
@@ -15,6 +16,10 @@ import { Voter } from "./models/Voter.js";
 import { createOwnerQueue } from "./chain/ownerQueue.js";
 import { createBallotConfigService } from "./services/ballotConfig.service.js";
 import { VoterSession } from "./models/VoterSession.js";
+import { VoteTicket } from "./models/VoteTicket.js";
+import { createRelayerQueue } from "./chain/relayerQueue.js";
+import { createAuthorizationService } from "./services/authorization.service.js";
+import { createCastService } from "./services/cast.service.js";
 import { createEligibilityService } from "./services/eligibility.service.js";
 import { createVoterAuthService } from "./services/voterAuth.service.js";
 import { createVoterService } from "./services/voter.service.js";
@@ -54,6 +59,8 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
 
   try {
     await mongo.connect();
+    const realDb = mongoose.connection.readyState === 1; // false only when tests substitute a fake Mongo
+    if (realDb) await Promise.all([VoteTicket.init(), VoterSession.init()]); // the unique indexes are load-bearing
 
     const healthService = createHealthService({
       runPreflight: ({ deep }) =>
@@ -75,10 +82,22 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
     const electionService = createElectionService({ chain, healthService, auth: authService, audit, ownerQueue, voterStats: () => voterService.stats() });
     const voterWiring = (a) => {
       const authService = createVoterAuthService({ Voter, VoterSession, chain, audit: a });
-      return { authService, eligibilityService: createEligibilityService({ Voter, authService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a }) };
+      const relayerQueue = createRelayerQueue();
+      return { authService, authorizationService: createAuthorizationService({ Voter, VoteTicket, authService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a }), castService: createCastService({ Voter, VoteTicket, authService, chain, relayerQueue, audit: a }), eligibilityService: createEligibilityService({ Voter, authService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a }) };
     };
-    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService }, voter: voterWiring(audit) });
-    return { app, config, logger, healthService, chain, mongo, preflight, close: release };
+    const voter = voterWiring(audit);
+    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService }, voter });
+
+    // Recovery sweep: completes votes whose voter can no longer ask (session expired, backend restarted, election closed).
+    const sweep = () => voter.castService.recoverPending().catch((err) => logger.warn({ err }, "recovery sweep failed"));
+    const sweepTimer = realDb ? setInterval(sweep, 30_000) : null;
+    sweepTimer?.unref();
+    if (realDb) void sweep();
+    const close = async () => {
+      if (sweepTimer) clearInterval(sweepTimer);
+      await release();
+    };
+    return { app, config, logger, healthService, chain, mongo, preflight, close, recoverPending: () => voter.castService.recoverPending() };
   } catch (err) {
     await release();
     throw err;

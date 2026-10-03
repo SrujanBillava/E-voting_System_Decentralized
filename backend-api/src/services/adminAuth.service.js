@@ -54,7 +54,7 @@ export function createAdminAuthService({ Admin, AdminSession, audit, secrets, no
   }
 
   async function registerFailure(admin) {
-    const updated = await Admin.findOneAndUpdate({ _id: admin._id }, { $inc: { failedLoginCount: 1 } }, { new: true });
+    const updated = await Admin.findOneAndUpdate({ _id: admin._id }, { $inc: { failedLoginCount: 1 } }, { returnDocument: "after" });
     if (updated && updated.failedLoginCount >= MAX_FAILURES) {
       await Admin.updateOne({ _id: admin._id }, { $set: { lockUntil: new Date(now() + LOCK_MS), failedLoginCount: 0 } });
     }
@@ -119,7 +119,7 @@ export function createAdminAuthService({ Admin, AdminSession, audit, secrets, no
       const tokenHash = sha256(refreshToken);
       const t = now();
       // Atomically claim the token: only one caller can rotate it.
-      const claimed = await AdminSession.findOneAndUpdate({ tokenHash, revokedAt: null, expiresAt: { $gt: new Date(t) } }, { $set: { revokedAt: new Date(t) } }, { new: true });
+      const claimed = await AdminSession.findOneAndUpdate({ tokenHash, revokedAt: null, expiresAt: { $gt: new Date(t) } }, { $set: { revokedAt: new Date(t) } }, { returnDocument: "after" });
       if (!claimed) {
         const known = await AdminSession.findOne({ tokenHash });
         if (known?.revokedAt) {
