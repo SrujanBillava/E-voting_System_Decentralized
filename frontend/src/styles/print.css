@@ -1,0 +1,17 @@
+/* Print: only the portable receipt. The recorded selection and every control are hidden, so a printed receipt can never name a candidate. */
+@media print {
+  .shell-header,
+  .shell-footer,
+  .shell-rail,
+  .stepper,
+  .countdown,
+  .skip-link,
+  .no-print,
+  .actions,
+  .recorded-selection {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}

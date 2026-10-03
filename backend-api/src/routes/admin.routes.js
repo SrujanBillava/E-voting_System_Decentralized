@@ -39,7 +39,8 @@ export function createAdminRouter({ authService, electionService, voterService, 
     try {
       setSession(res, await authService.refresh({ refreshToken: req.cookies?.[REFRESH_COOKIE], ip: req.ip, requestId: req.id }));
     } catch (err) {
-      res.clearCookie(REFRESH_COOKIE, cookieOptions());
+      // Only a definite "not authenticated" ends the browser's session. A transient failure (database down, ...) must not log the admin out.
+      if (err?.status === 401) res.clearCookie(REFRESH_COOKIE, cookieOptions());
       throw err;
     }
   });

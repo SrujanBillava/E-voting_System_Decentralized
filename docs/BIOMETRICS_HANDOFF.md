@@ -57,3 +57,41 @@ cd backend-api && npm test                         # offline tests
 MONGODB_TEST_URI=mongodb://127.0.0.1:27017/evoting-test npm run test:integration && npm run test:chain   # need a disposable MongoDB
 ```
 Chain tests open the election only inside snapshots; `npm run verify:local` in `smart-contract/` must still pass afterwards.
+
+## Frontend integration (the V2 frontend already exists on `feature/voting-core`)
+
+Do NOT redesign screens. The face step is a visual shell with two registered seams; you plug into them and nothing else.
+
+### Voter kiosk: `frontend/src/features/voter/face/registry.ts`
+```ts
+registerFaceVerifier(Component | null)             // call once at startup, e.g. from a new frontend/src/features/voter/face/index.ts imported by main.tsx
+interface FaceAdapterProps {
+  voter: { name: string; voterId: string };
+  onServerStageMayHaveChanged: () => void;         // call after YOUR backend call finished (success OR failure); the kiosk re-reads GET /voter/status
+  onNeedsOfficial: () => void;                     // e.g. after the attempt limit: shows the 'ask a polling official' state
+}
+```
+* The component renders inside the camera area of `screens/FaceScreen.tsx`. While none is registered, the screen says verification is
+  unavailable and offers only "Check again" and "End session". There is no skip and no way to report success from the browser:
+  **the server moves `AUTHENTICATED -> FACE_VERIFIED`**, and the kiosk follows `GET /voter/status`.
+* Add your API calls as a small module (e.g. `frontend/src/api/biometricApi.ts`) using `request()` from `api/http.ts` (same error envelope,
+  cookies and `/api/v1` base). Expected voter endpoints on your branch: a challenge request, a verification submit (descriptor + challenge id),
+  both session-authenticated by the existing opaque voter cookie, both valid only in stage `AUTHENTICATED`. Names are yours to choose.
+* `@vladmandic/human` (camera, descriptor extraction) belongs in the registered component only. Lazy-load it so the public and admin bundles stay free of it.
+* The kiosk's `/status` call is allowed in a Closed election only for AUTH_ISSUED+ stages; face verification never needs that.
+
+### Admin: `frontend/src/features/admin/biometrics/adapter.ts`
+```ts
+registerEnrolmentPanel(Component | null)           // props: { voter: {id, voterId, name, faceEnrolled}, onEnrolmentChanged(), onClose() }
+```
+* `BiometricsPage.tsx` lists voters (existing `GET /admin/voters`) and shows disabled Enrol / Re-enrol buttons until a panel is registered;
+  with one registered it opens the panel in the shared `Dialog`. Call `onEnrolmentChanged()` after a successful enrolment so the list refreshes.
+* Enrolment must remain Setup-only on the backend; the page already renders a locked state outside Setup.
+
+### Likely merge conflicts (keep your edits minimal in these)
+* `backend-api/src/app.js`, `server.js` (service wiring), `auth/voterStages.js`, `services/voterAuth.service.js` (`transitionStage` is reused unchanged),
+  `models/Voter.js`/`VoterSession.js` if you add fields.
+* Frontend: `frontend/src/main.tsx` (one import to register the adapters) and `frontend/package.json`/`package-lock.json` (the human library).
+  `screens/FaceScreen.tsx`, `Kiosk.tsx` and `AdminLayout.tsx` should not need changes.
+* The browser tests: `frontend/e2e/*.spec.ts` place sessions at FACE_VERIFIED through `backend-api/test/helpers/e2e-fixture.js stage ...`.
+  Keep that working; add your own spec for the real face flow.

@@ -1,73 +1,29 @@
-# React + TypeScript + Vite
+# VoteChain frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript + Vite. Three separate contexts, each with its own layout and code-split bundle:
 
-Currently, two official plugins are available:
+| Context | Routes | Layout |
+|---|---|---|
+| Public | `/`, `/election`, `/verify`, `/results`, `/trust`, `/accessibility` | `layouts/PublicLayout.tsx` |
+| Voter kiosk | `/vote` | `layouts/VoterKioskLayout.tsx` |
+| Admin console | `/admin/login`, `/admin/*` | `layouts/AdminLayout.tsx` |
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The browser talks **only** to the VoteChain HTTP API (`/api/v1`). There is no ethers, MetaMask or direct RPC. Route guards are a UX
+convenience; the backend is the security boundary.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev        # proxies /api to VITE_PROXY_TARGET (default http://localhost:5000)
+npm run build      # tsc -b && vite build
+npm run lint
+npm run e2e        # Playwright against a real local stack, see e2e/README.md
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Design: `docs/FRONTEND_DESIGN.md` (tokens in `src/styles/tokens.css`, class vocabulary in `src/styles/components.css`).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Server is the authority
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+* Voter: the stage always comes from `GET /voter/status`. Nothing about the journey is stored in `localStorage` / `sessionStorage`.
+* Admin: the access token lives in memory only (`src/api/adminSession.ts`); the rotating refresh token is an HttpOnly cookie.
+* Face verification is a **shell only** (`src/features/voter/screens/FaceScreen.tsx`). The biometric client plugs in through
+  `src/features/voter/face/registry.ts`; it can never report success from the browser, the server moves the stage.

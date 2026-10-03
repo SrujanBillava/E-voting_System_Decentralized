@@ -1,0 +1,283 @@
+/* ==========================================================================
+   VoteChain V2 - design tokens
+   Direction: ballot paper / civic system. Flat, hairline-ruled, one accent.
+
+   This file holds TOKENS ONLY (custom properties). No selectors that paint
+   anything. Component rules live in components.css and may reference only
+   these variables. Layout contexts (.shell-kiosk, .shell-admin) re-declare a
+   few of these tokens (type scale, control height, gutters) - see the end of
+   this file - so every component scales with its context automatically.
+
+   Structure:
+     1. :root custom properties          (valid plain CSS)
+     2. context overrides                (kiosk / admin)
+     3. reduced-motion                   (motion tokens collapse to ~0)
+     4. @theme blocks (Tailwind v4)      (expose tokens as utilities; plain-CSS
+                                          previews simply ignore them)
+   No external fonts, no CDN, no network resources of any kind.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Colour: neutrals (warm "paper" greys, never cool slate) ----------- */
+  --c-paper: #f6f3ec;          /* page background: the ballot paper          */
+  --c-surface: #ffffff;        /* inputs, tables, dialog, ballot sheet       */
+  --c-sunken: #ece8dd;         /* table head, admin rail, skeleton, tracks   */
+  --c-hover: #f1eee5;          /* subtle row / link hover                    */
+  --c-ink: #1a1d21;            /* primary text, closed-phase fill            */
+  --c-ink-2: #3b4148;          /* secondary text                             */
+  --c-muted: #555b63;          /* tertiary text, hints (AA on all surfaces)  */
+  --c-faint: #8b9096;          /* DISABLED text only; never for content      */
+  --c-rule: #d6d0c2;           /* hairline dividers (decorative)             */
+  --c-control: #6b7078;        /* borders of inputs/buttons (3:1+ UI)        */
+
+  /* ---- Colour: the single civic accent - deep ink-blue ------------------- */
+  --c-accent: #1b3a5c;
+  --c-accent-hover: #102a45;
+  --c-accent-tint: #e2e9f2;    /* selected row / info background             */
+  --c-accent-rule: #9fb2c9;    /* decorative edge on tinted areas            */
+  --c-on-accent: #ffffff;
+
+  /* ---- Colour: semantic (restrained, each paired with tint + edge) ------- */
+  --c-danger: #9b1c1c;
+  --c-danger-hover: #7a1414;
+  --c-danger-tint: #f8e4e1;
+  --c-on-danger: #ffffff;
+
+  --c-ok: #1d6137;
+  --c-ok-tint: #e3f0e6;
+
+  --c-warn: #6a4100;           /* text on warn-tint and surfaces             */
+  --c-warn-edge: #a66a00;      /* border / glyph colour for attention        */
+  --c-warn-tint: #fbefcf;
+
+  --c-focus: var(--c-ink);     /* the focus ring: 15:1 on paper              */
+  --c-scrim: rgb(26 29 33 / 0.55);   /* the ONLY translucent colour: dialog backdrop */
+
+  /* ---- Type: families (all system, zero downloads) ----------------------- */
+  --ff-heading: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+    Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  --ff-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    "Helvetica Neue", Roboto, Arial, sans-serif;
+  --ff-data: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo,
+    Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+
+  /* ---- Type: scale (rem; contexts below re-declare it) ------------------- */
+  --fs-xs: 0.75rem;     /* 12  captions, status labels */
+  --fs-sm: 0.875rem;    /* 14  hints, table cells, meta */
+  --fs-base: 1rem;      /* 16  body */
+  --fs-md: 1.125rem;    /* 18  lede, emphasised body */
+  --fs-lg: 1.25rem;     /* 20  h3 */
+  --fs-xl: 1.5rem;      /* 24  h2 */
+  --fs-2xl: 1.875rem;   /* 30  h1 */
+  --fs-3xl: 2.375rem;   /* 38  big h1 */
+  --fs-4xl: clamp(2.25rem, 1.6rem + 2.8vw, 3.25rem);  /* display */
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.3;
+  --lh-body: 1.55;
+  --lh-prose: 1.65;
+
+  --track-caps: 0.08em;  /* letter-spacing for the eyebrow only */
+
+  /* ---- Spacing: 4px base, rem-based -------------------------------------- */
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+  --s-8: 4rem;
+  --s-9: 6rem;
+
+  /* Rhythm: vertical gap used by .stack / .section (contexts scale it) */
+  --gap: var(--s-4);
+  --gap-lg: var(--s-6);
+  --gap-section: var(--s-7);
+
+  /* ---- Shape: small, square, ruled --------------------------------------- */
+  --r-0: 0;
+  --r-1: 2px;       /* controls, status labels */
+  --r-2: 4px;    /* dialog, ballot sheet: the maximum anywhere */
+
+  --bw-hair: 1px;      /* dividers, table rules, panel edges */
+  --bw-control: 1px;   /* input / button borders (kiosk: 2px) */
+  --bw-strong: 2px;    /* selected, ballot sheet edge, invalid input */
+  --bw-heavy: 4px;     /* alert / phase edge bars, current nav mark */
+
+  --ring-w: 3px;       /* focus ring thickness */
+  --ring-offset: 2px;
+
+  /* ---- Controls & touch -------------------------------------------------- */
+  --control-h: 2.75rem;     /* 44px: buttons, inputs (WCAG 2.5.5 / 2.5.8) */
+  --control-h-sm: 2.25rem;  /* 36px: dense admin toolbars only */
+  --control-h-lg: 3.5rem;   /* 56px: kiosk buttons */
+  --choice-h: 3.5rem;       /* 56px: minimum ballot-row height anywhere */
+  --control-px: var(--s-4);
+  --check-size: 1.5rem;     /* native checkbox / radio box */
+
+  /* ---- Layout widths ----------------------------------------------------- */
+  --w-prose: 66ch;          /* <= 70ch reading measure */
+  --w-form: 34rem;
+  --w-page: 72rem;          /* public container */
+  --w-kiosk: 60rem;         /* fits 1024px with generous side space */
+  --w-admin: 100rem;
+  --rail-w: 15rem;          /* admin navigation rail */
+  --gutter: clamp(1rem, 4vw, 2rem);   /* 16px at 390 wide */
+  --header-h: 3.5rem;
+  --w-dialog: 36rem;
+  --w-term: 13rem;          /* <dt> column in .dl-row */
+  --w-field: 16rem;         /* preferred width of a toolbar search / filter */
+  --w-table: 36rem;         /* table minimum before it scrolls sideways */
+  --bar-h: 0.875rem;        /* result bar thickness */
+  --glyph: 0.75em;          /* status / alert shape glyph size */
+  --cell-y: var(--s-3);     /* table cell vertical padding */
+  --choice-gap: var(--s-2); /* space between ballot rows */
+
+  /* ---- Elevation: layers only (there are no shadows) ---------------------- */
+  --z-sticky: 10;
+  --z-header: 20;
+  --z-dialog: 50;
+  --z-skip: 100;
+
+  /* ---- Motion: short, functional, interruptible -------------------------- */
+  --dur-fast: 100ms;
+  --dur: 160ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --spin: 900ms;
+}
+
+/* ---- Context overrides ---------------------------------------------------
+   The same components, re-scaled. Applied on the shell element, so all
+   descendants inherit. Keep these the ONLY places a context changes tokens. */
+
+/* VOTER KIOSK: 20px body, big targets, generous rhythm, 2px control borders */
+.shell-kiosk {
+  --fs-xs: 0.875rem;
+  --fs-sm: 1rem;
+  --fs-base: 1.25rem;
+  --fs-md: 1.375rem;
+  --fs-lg: 1.625rem;
+  --fs-xl: 2rem;
+  --fs-2xl: 2.5rem;
+  --fs-3xl: 3rem;
+  --fs-4xl: 3.75rem;
+  --lh-body: 1.5;
+  --gap: var(--s-5);
+  --gap-lg: var(--s-6);
+  --gap-section: var(--s-7);
+  --bw-control: 2px;
+  --control-h: 3.5rem;
+  --control-h-lg: 4.5rem;     /* 72px primary kiosk button */
+  --choice-h: 4.5rem;         /* 72px ballot rows (>= 56px contract) */
+  --control-px: var(--s-5);
+  --check-size: 2rem;
+  --choice-gap: var(--s-3);
+  --cell-y: var(--s-4);
+  --gutter: 2.5rem;
+  --header-h: 3.25rem;        /* thin identity strip */
+}
+
+/* ADMIN: denser, desktop-oriented */
+.shell-admin {
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.375rem;
+  --fs-2xl: 1.625rem;
+  --fs-3xl: 1.875rem;
+  --lh-body: 1.45;
+  --gap: var(--s-3);
+  --gap-lg: var(--s-5);
+  --gap-section: var(--s-6);
+  --control-h: 2.5rem;        /* 40px */
+  --control-h-sm: 2rem;
+  --control-px: var(--s-3);
+  --cell-y: var(--s-2);
+  --gutter: var(--s-5);
+  --header-h: 3.25rem;
+  --ff-heading: var(--ff-ui);   /* admin headings are sans: technical, not editorial */
+}
+
+/* ---- Reduced motion: every duration collapses; no spinner rotation ------- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01ms;
+    --dur: 0.01ms;
+    --spin: 0s;
+  }
+}
+
+/* ---- Tailwind v4 theme exposure ------------------------------------------
+   Utilities such as bg-paper, text-ink, border-rule, font-heading, text-sm,
+   rounded, min-h-control are generated from these. `inline` makes utilities
+   reference the live variable, so the kiosk / admin overrides above apply to
+   Tailwind utilities too. Default Tailwind palette/radius/shadow are reset so
+   off-system values (bg-blue-500, shadow-lg, rounded-xl) cannot be used. */
+@theme {
+  --color-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --blur-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+}
+
+@theme inline {
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-paper: var(--c-paper);
+  --color-surface: var(--c-surface);
+  --color-sunken: var(--c-sunken);
+  --color-hover: var(--c-hover);
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-muted: var(--c-muted);
+  --color-faint: var(--c-faint);
+  --color-rule: var(--c-rule);
+  --color-control: var(--c-control);
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-tint: var(--c-accent-tint);
+  --color-accent-rule: var(--c-accent-rule);
+  --color-on-accent: var(--c-on-accent);
+  --color-danger: var(--c-danger);
+  --color-danger-hover: var(--c-danger-hover);
+  --color-danger-tint: var(--c-danger-tint);
+  --color-on-danger: var(--c-on-danger);
+  --color-ok: var(--c-ok);
+  --color-ok-tint: var(--c-ok-tint);
+  --color-warn: var(--c-warn);
+  --color-warn-edge: var(--c-warn-edge);
+  --color-warn-tint: var(--c-warn-tint);
+
+  --font-heading: var(--ff-heading);
+  --font-sans: var(--ff-ui);
+  --font-mono: var(--ff-data);
+
+  --text-xs: var(--fs-xs);
+  --text-sm: var(--fs-sm);
+  --text-base: var(--fs-base);
+  --text-md: var(--fs-md);
+  --text-lg: var(--fs-lg);
+  --text-xl: var(--fs-xl);
+  --text-2xl: var(--fs-2xl);
+  --text-3xl: var(--fs-3xl);
+  --text-4xl: var(--fs-4xl);
+
+  --radius-none: var(--r-0);
+  --radius-sm: var(--r-1);
+  --radius-md: var(--r-1);
+  --radius-lg: var(--r-2);
+}

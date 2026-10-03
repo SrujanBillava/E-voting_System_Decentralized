@@ -1,0 +1,115 @@
+/* Tailwind v4 ships its own responsive `.container` utility (max-width per breakpoint). It sits in the utilities layer and would beat the
+   design system's `.container` width tokens, so it is redefined here WITHOUT width, max-width or padding; those come from components.css. */
+@utility container {
+  box-sizing: border-box;
+}
+
+/* App-specific kiosk pieces. Tokens only; no new colours, no shadows, no gradients. */
+@layer components {
+  .camera-shell {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 4 / 3;
+    max-height: 22rem;
+    width: 100%;
+    max-width: 30rem;
+    margin-inline: auto;
+    background: var(--c-sunken);
+    border: var(--bw-strong, 2px) dashed var(--c-control);
+  }
+  .camera-shell > svg {
+    width: 45%;
+    height: auto;
+    color: var(--c-control);
+  }
+  .camera-status {
+    margin-top: var(--s-3);
+    text-align: left;
+  }
+  .selection-name {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-3xl);
+    line-height: var(--lh-tight, 1.15);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .progress-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: var(--s-3);
+  }
+  .progress-list li {
+    display: flex;
+    gap: var(--s-3);
+    align-items: baseline;
+    color: var(--c-muted);
+  }
+  .progress-list li[aria-current="step"] {
+    color: var(--c-ink);
+    font-weight: 600;
+  }
+  .progress-list li.is-done {
+    color: var(--c-ink-2);
+  }
+}
+
+/* The pinned kiosk action bar must never cover a focused field or the last row. */
+html:has(.shell-kiosk) {
+  scroll-padding-bottom: 9rem;
+}
+
+/* Admin header on very narrow screens (WCAG reflow at 320px): allow the bar to wrap instead of overflowing. */
+@media (max-width: 40rem) {
+  .shell-admin .shell-bar {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---- Kiosk responsiveness (unlayered: these refine components.css) ---- */
+.shell-kiosk .shell-brand {
+  white-space: nowrap;
+}
+.shell-kiosk .page-head {
+  padding-block: var(--s-2) var(--s-3);
+  margin-bottom: var(--s-3);
+}
+@media (max-width: 60rem) {
+  .shell-kiosk .shell-bar {
+    flex-wrap: wrap;
+    padding-block: var(--s-2);
+  }
+  .kiosk-where {
+    display: none;
+  }
+}
+@media (max-width: 40rem) {
+  /* a phone is not a kiosk: do not let a stack of pinned buttons eat the screen */
+  .shell-kiosk .shell-footer {
+    position: static;
+  }
+  .shell-kiosk .choice {
+    flex-wrap: wrap;
+  }
+  .shell-kiosk .choice-state {
+    flex-basis: 100%;
+    padding-left: calc(var(--s-5) + var(--s-4));
+  }
+}
+
+.step-count {
+  display: none;
+  margin: 0;
+  font-weight: var(--fw-semibold);
+}
+@media (max-width: 40rem) {
+  /* seven tracks do not fit a phone: say where the voter is in words instead */
+  .shell-kiosk .stepper {
+    display: none;
+  }
+  .step-count {
+    display: block;
+  }
+}
