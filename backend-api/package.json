@@ -9,20 +9,38 @@
   "license": "MIT",
   "author": "Siddu-06-0405",
   "type": "module",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test \"test/unit/**/*.test.js\"",
+    "test:chain": "node --test --test-concurrency=1 \"test/chain/**/*.test.js\"",
+    "test:all": "npm test && npm run test:integration && npm run test:chain",
+    "sync:abi": "node scripts/sync-abi.js",
+    "check:abi": "node scripts/sync-abi.js --check",
+    "init:env": "node scripts/init-local-env.js",
+    "admin:create": "node scripts/create-admin.js",
+    "test:integration": "node --test --test-concurrency=1 \"test/integration/**/*.test.js\""
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "ethers": "^6.17.0",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.8.0",
+    "otplib": "^13.5.0",
     "qrcode": "^1.5.4",
-    "speakeasy": "^2.0.0"
+    "zod": "^4.6.5"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.1"
   }
 }

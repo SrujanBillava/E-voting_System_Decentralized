@@ -14,8 +14,12 @@ artifacts
 # Hardhat compilation (v2) support directory
 cache
 
+# Local Hardhat/Ignition deployment state and generated local metadata (never commit)
+/smart-contract/ignition/deployments/
+/smart-contract/deployments/
+
 # Typechain output
-types
+/smart-contract/types/
 
 # Environment files
 .env
