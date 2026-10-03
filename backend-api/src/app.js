@@ -43,7 +43,7 @@ export function createApp({ config, logger, healthService, admin, voter, loginRa
       },
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id", "Idempotency-Key"],
       exposedHeaders: ["X-Request-Id"],
       maxAge: 600,
     }),
@@ -53,7 +53,7 @@ export function createApp({ config, logger, healthService, admin, voter, loginRa
 
   app.use("/api/v1", createApiRouter({ healthService }));
   if (voter) app.use("/api/v1/voter", createVoterRouter({ authService: voter.authService, config, loginRateLimit: voterLoginRateLimit }));
-  if (voter?.eligibilityService) app.use("/api/v1/voter", createVoterJourneyRouter({ authService: voter.authService, eligibilityService: voter.eligibilityService, config }));
+  if (voter?.eligibilityService) app.use("/api/v1/voter", createVoterJourneyRouter({ authService: voter.authService, eligibilityService: voter.eligibilityService, authorizationService: voter.authorizationService, castService: voter.castService, config }));
   if (admin) app.use("/api/v1/admin", createAdminRouter({ ...admin, config, loginRateLimit }));
 
   app.use(notFound);

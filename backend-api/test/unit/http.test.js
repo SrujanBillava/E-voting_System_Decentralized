@@ -468,7 +468,7 @@ describe("http: CORS edge cases", () => {
     const { app } = build();
     const res = await request(app).options("/api/v1/health").set("Origin", ALLOWED).set("Access-Control-Request-Method", "DELETE").set("Access-Control-Request-Headers", "X-Evil, Authorization");
     assert.equal(res.status, 204);
-    assert.equal(res.headers["access-control-allow-headers"], "Content-Type,Authorization,X-Request-Id");
+    assert.equal(res.headers["access-control-allow-headers"], "Content-Type,Authorization,X-Request-Id,Idempotency-Key");
     assert.equal(res.headers["access-control-allow-methods"], "GET,POST,PUT,PATCH,DELETE,OPTIONS");
     assert.equal(res.headers["access-control-max-age"], "600");
     assert.equal(res.headers["access-control-allow-credentials"], "true");

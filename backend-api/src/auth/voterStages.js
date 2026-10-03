@@ -16,4 +16,6 @@ export const canTransition = (from, to) => isStage(from) && isStage(to) && STAGE
 // Lifetimes in one place (milliseconds).
 export const SESSION_ABSOLUTE_MS = 15 * 60 * 1000;
 export const SESSION_IDLE_MS = 120 * 1000;
-export const STAGE_TTL_MS = Object.freeze({ [STAGES.AUTHENTICATED]: 5 * 60 * 1000, [STAGES.ELIGIBLE]: 3 * 60 * 1000 });
+/** How long an issued authorization / the AUTH_ISSUED stage lives. */
+export const AUTHORIZATION_TTL_MS = 180 * 1000;
+export const STAGE_TTL_MS = Object.freeze({ [STAGES.AUTHENTICATED]: 5 * 60 * 1000, [STAGES.ELIGIBLE]: 3 * 60 * 1000, [STAGES.AUTH_ISSUED]: AUTHORIZATION_TTL_MS, [STAGES.SUBMITTED]: 10 * 60 * 1000 });
