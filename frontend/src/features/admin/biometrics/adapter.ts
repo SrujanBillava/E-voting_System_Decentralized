@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, LazyExoticComponent } from "react";
 
 /**
  * The seam where the real face-enrolment panel plugs into the admin console once feature/biometrics is merged.
@@ -14,12 +14,17 @@ export interface EnrolmentPanelProps {
   onEnrolmentChanged: () => void;
   /** Ask the page to close the dialog. */
   onClose: () => void;
+  /** True only while the election is in Setup: enrolment changes are refused by the server in every other phase. */
+  canModify: boolean;
+  /** Tell the page an enrolment request is in flight, so it does not let the dialog be dismissed meanwhile. */
+  onBusyChange: (busy: boolean) => void;
 }
+type PanelComponent = ComponentType<EnrolmentPanelProps> | LazyExoticComponent<ComponentType<EnrolmentPanelProps>>;
 
-let registered: ComponentType<EnrolmentPanelProps> | null = null;
+let registered: PanelComponent | null = null;
 
 /** Called once at startup by the biometric integration (not by this step). Pass null to unregister. */
-export function registerEnrolmentPanel(component: ComponentType<EnrolmentPanelProps> | null): void {
+export function registerEnrolmentPanel(component: PanelComponent | null): void {
   registered = component;
 }
-export const getEnrolmentPanel = (): ComponentType<EnrolmentPanelProps> | null => registered;
+export const getEnrolmentPanel = (): PanelComponent | null => registered;

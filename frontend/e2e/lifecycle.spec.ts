@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { capture, installFace, liveTracks, setFace } from "./face";
 import {
   ADMIN,
   BACKEND_URL,
@@ -20,8 +21,9 @@ import {
  * ONE ordered scenario against the REAL stack (Hardhat + MongoDB + V2 backend). Needs a pristine Setup election:
  *   reset-e2e.sh   (fresh chain, 0 ballots)   then   npx playwright test e2e/lifecycle.spec.ts
  * It cannot be re-run without a reset because the election lifecycle is one way (Setup -> Open -> Closed).
- * The face step is a visual shell on this branch: the fixture CLI places the live session at FACE_VERIFIED, exactly like the
- * trusted server-side primitive the biometric step will use. Nothing in the app is bypassed.
+ * The face step is REAL: voters are enrolled (synthetic, encrypted templates made by the fixture CLI), the browser runs the TEST-ONLY
+ * face engine (a scripted person with made-up descriptors, Chrome's fake camera), and the SERVER decides AUTHENTICATED -> FACE_VERIFIED
+ * through the real face endpoints. No stage is forced anywhere in this spec.
  */
 test.describe.configure({ mode: "serial" });
 
@@ -39,6 +41,8 @@ const problems: string[] = []; // axe / structure / text-rule findings, asserted
 const ALICE = { name: "Alice Voter", email: "alice.voter@example.org", code: "KA-BLR", pick: "Neha Joshi" };
 const UMA = { name: "Uma Delhi", email: "uma.delhi@example.org", code: "DL-DEL", password: "ui created password 1" };
 const CAROL = { name: "Carol Voter", email: "carol.voter@example.org", code: "MH-MUM" };
+const SEED = { alice: 21, uma: 22, carol: 23 } as const; // imaginary people (synthetic descriptors) for the real face check
+const genuine = (who: keyof typeof SEED) => ({ descriptor: capture(SEED[who], 0.85, 40 + SEED[who]) });
 let aliceId = "";
 let umaId = "";
 let carolId = "";
@@ -63,6 +67,8 @@ test.beforeAll(async ({ browser }) => {
   secret = fixture<{ totpSecret: string }>("admin", ADMIN.email, ADMIN.password).totpSecret;
   aliceId = fixture<{ voterId: string }>("voter", ALICE.name, ALICE.email, VOTER_PASSWORD, ALICE.code).voterId;
   carolId = fixture<{ voterId: string }>("voter", CAROL.name, CAROL.email, VOTER_PASSWORD, CAROL.code).voterId;
+  fixture("enrol", aliceId, String(SEED.alice)); // synthetic encrypted face templates: the face step below is the REAL one
+  fixture("enrol", carolId, String(SEED.carol));
 
   const el = (await (await fetch(`${API}/public/election`)).json()) as { data: { constituencies: { code: string; candidates: { name: string }[] }[] } };
   names = Object.fromEntries(el.data.constituencies.map((c) => [c.code, c.candidates.map((x) => x.name)]));
@@ -85,6 +91,7 @@ test.beforeAll(async ({ browser }) => {
   ]);
 
   kioCtx = await newContext(browser, { viewport: { width: 1024, height: 768 } });
+  await installFace(kioCtx, {});
   await kioCtx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: `http://localhost:${process.env.E2E_PORT ?? 5173}` });
   kio = await kioCtx.newPage();
   kioGuard = new Guard(kio, []);
@@ -226,6 +233,7 @@ test.describe("admin console", () => {
     const notice = adm.getByRole("status").filter({ hasText: "Voter added" });
     await expect(notice).toBeVisible();
     umaId = ((await notice.innerText()).match(/VC-[A-Z0-9]+/) ?? [])[0] ?? "";
+    fixture("enrol", umaId, String(SEED.uma));
     expect(umaId).toMatch(/^VC-/);
     await expect(adm.getByRole("row", { name: new RegExp(UMA.name) })).toBeVisible();
     await expect(adm.getByRole("row", { name: new RegExp(UMA.name) })).toContainText(umaId);
@@ -407,33 +415,28 @@ test.describe("voter kiosk (supervised terminal)", () => {
     await shot(kio, "life-kiosk-signin-error");
     kioGuard.allow({ status: 401, url: "/voter/auth/login" });
 
+    await setFace(kio, { ...genuine("alice"), noMovement: true }); // hold the face step still while it is inspected
     await kio.getByLabel("Voter ID or email").fill(ALICE.email);
     await kio.getByLabel("Password").fill(VOTER_PASSWORD);
     await kio.getByRole("button", { name: "Sign in" }).click();
     await expect(kio.getByRole("heading", { level: 1, name: "Face check" })).toBeVisible();
-    await expect(kio.getByText(/not available on this terminal/i)).toBeVisible();
+    await expect(kio.locator(".camera-video")).toBeVisible(); // the live camera preview
     await expect(kio.locator(".shell-header")).toContainText("Open");
     await expect(kio.locator(".countdown")).toBeVisible();
-    await shot(kio, "life-kiosk-face-shell");
-    await scan(kio, "kiosk face shell");
+    await expect(kio.locator(".camera-status")).toContainText(/Hold still|Blink now|Turn your head|Starting/, { timeout: 20_000 });
+    await shot(kio, "life-kiosk-face-check");
+    await scan(kio, "kiosk face check");
 
-    // the only controls are 'End session' and 'Check again': no skip / verify-anyway affordance of any kind
+    // the only control is 'End session': no skip / verify-anyway affordance of any kind
     const controls = await kio.locator("button, a:not(.skip-link), [role=button], input, select, textarea").evaluateAll((e) => e.map((x) => (x.textContent ?? "").trim()));
-    expect([...controls].sort()).toEqual(["Check again", "End session"]);
-    expect(controls.join(" ")).not.toMatch(/skip|verify anyway|bypass|continue without|override|simulate|demo/i);
-
-    // "Check again" before the server moved the stage changes nothing
-    await kio.getByRole("button", { name: "Check again" }).click();
-    await expect(kio.getByRole("heading", { level: 1, name: "Face check" })).toBeVisible();
-    // a hard refresh renders the server stage
-    await kio.reload();
-    await expect(kio.getByRole("heading", { level: 1, name: "Face check" })).toBeVisible();
+    expect(controls).toEqual(["End session"]);
+    expect(controls.join(" ")).not.toMatch(/skip|verify anyway|bypass|continue without|override|simulate|demo|check again/i);
   });
 
-  test("the kiosk follows the SERVER stage: FACE_VERIFIED -> eligibility -> ballot", async () => {
-    fixture("stage", aliceId, "FACE_VERIFIED");
-    await kio.getByRole("button", { name: "Check again" }).click();
-    await expect(kio.getByRole("heading", { level: 1, name: "You are eligible to vote" })).toBeVisible();
+  test("the SERVER decides: the real face check passes, then eligibility -> ballot; a refresh shows the server stage", async () => {
+    await setFace(kio, { noMovement: false });
+    await expect(kio.getByRole("heading", { level: 1, name: "You are eligible to vote" })).toBeVisible({ timeout: 60_000 });
+    expect(await liveTracks(kio)).toBe(0); // the camera is off once the server accepted the face
     await expect(kio.getByText("Your ballot is for Bengaluru.")).toBeVisible();
     await shot(kio, "life-kiosk-eligible");
     await scan(kio, "kiosk eligibility");
@@ -552,12 +555,10 @@ test.describe("voter kiosk (supervised terminal)", () => {
   });
 
   test("the same voter signs in again: already accepted, receipt is available and identical", async () => {
-    await kioskSignIn(kio, aliceId);
+    await kioskSignIn(kio, aliceId, VOTER_PASSWORD, genuine("alice"));
     await expect(kio.getByRole("heading", { level: 1, name: "Face check" })).toBeVisible();
-    fixture("stage", aliceId, "FACE_VERIFIED");
     kioGuard.allow({ status: 409, url: "/voter/eligibility/check" }, { status: 403, url: "/voter/eligibility/check" });
-    await kio.getByRole("button", { name: "Check again" }).click();
-    await expect(kio.getByRole("heading", { level: 1, name: "A ballot has already been accepted" })).toBeVisible();
+    await expect(kio.getByRole("heading", { level: 1, name: "A ballot has already been accepted" })).toBeVisible({ timeout: 60_000 });
     await expect(kio.getByText("You have already voted")).toBeVisible();
     await expect(kio.getByRole("button", { name: "View my receipt" })).toBeVisible();
     await expect(kio.getByRole("button", { name: /^(begin|view my ballot|try again|vote)/i })).toHaveCount(0);
@@ -571,11 +572,9 @@ test.describe("voter kiosk (supervised terminal)", () => {
   });
 
   test("a second, UI-created voter votes in another constituency for a different candidate", async () => {
-    await kioskSignIn(kio, umaId, UMA.password); // the voter the official created through the Voters page
+    await kioskSignIn(kio, umaId, UMA.password, genuine("uma")); // the voter the official created through the Voters page
     await expect(kio.getByRole("heading", { level: 1, name: "Face check" })).toBeVisible();
-    fixture("stage", umaId, "FACE_VERIFIED");
-    await kio.getByRole("button", { name: "Check again" }).click();
-    await expect(kio.getByRole("heading", { level: 1, name: "You are eligible to vote" })).toBeVisible();
+    await expect(kio.getByRole("heading", { level: 1, name: "You are eligible to vote" })).toBeVisible({ timeout: 60_000 });
     await expect(kio.getByText(/Delhi/).first()).toBeVisible();
     await kio.getByRole("button", { name: "View my ballot" }).click();
     await expect(kio.getByRole("heading", { level: 1, name: "Your ballot" })).toBeVisible();
@@ -591,7 +590,7 @@ test.describe("voter kiosk (supervised terminal)", () => {
 
   test("roles are separated: voter cookie vs admin console, admin session vs kiosk", async ({ browser }) => {
     // --- a voter session cookie cannot reach the admin console or its API
-    await kioskSignIn(kio, carolId);
+    await kioskSignIn(kio, carolId, VOTER_PASSWORD, { ...genuine("carol"), noMovement: true }); // hold the face step so the session stays AUTHENTICATED
     await expect(kio.getByRole("heading", { level: 1, name: "Face check" })).toBeVisible();
     await kio.goto("/admin/election");
     await expect(kio).toHaveURL(/\/admin\/login/);

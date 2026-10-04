@@ -17,8 +17,25 @@
     margin-inline: auto;
     background: var(--c-sunken);
     border: var(--bw-strong, 2px) dashed var(--c-control);
+    overflow: hidden;
   }
-  .camera-shell > svg {
+  .camera-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* mirror preview only; analysed frames are never mirrored */
+  }
+  .camera-guide {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    color: var(--c-surface);
+    pointer-events: none;
+  }
+  .camera-shell > svg:not(.camera-guide) {
     width: 45%;
     height: auto;
     color: var(--c-control);

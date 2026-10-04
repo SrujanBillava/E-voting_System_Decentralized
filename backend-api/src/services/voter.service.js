@@ -50,11 +50,10 @@ export function createVoterService({ Voter, chain, audit, bcryptCost = 12, FaceT
   /** Biometric data must not outlive the voter. Scoped strictly to this voter's id and this voter's session ids. */
   async function removeFaceData(voter, ctx) {
     if (!FaceTemplate) return;
-    try {
-      await FaceTemplate.deleteOne({ voterId: voter._id });
-      if (FaceChallenge) await FaceChallenge.deleteMany({ voterId: voter._id });
-    } catch {
-      // The voter is already gone and the leftover row is encrypted with a key bound to this voter's id (so it is unusable),
+    // Independent cleanups: one failing must not skip the other.
+    const results = await Promise.allSettled([FaceTemplate.deleteOne({ voterId: voter._id }), FaceChallenge ? FaceChallenge.deleteMany({ voterId: voter._id }) : Promise.resolve()]);
+    if (results.some((r) => r.status === "rejected")) {
+      // The voter is already gone and a leftover row is encrypted with a key bound to this voter's id (so it is unusable),
       // but say so loudly in the audit trail instead of failing a delete that has already happened.
       await audit.record({ action: "VOTER_FACE_CLEANUP_FAILED", result: "failure", adminId: ctx.adminId, requestId: ctx.requestId, ip: ctx.ip, meta: { voterDbId: String(voter._id), voterId: voter.voterId, reason: "face_cleanup_failed" } });
     }

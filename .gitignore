@@ -66,3 +66,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Face pipeline assets prepared by `npm run face:setup` (GhostNet weights are research-licensed: never commit them)
+frontend/public/face/

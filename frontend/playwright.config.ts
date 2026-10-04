@@ -18,6 +18,9 @@ export default defineConfig({
     baseURL: `http://localhost:${port}`,
     channel: "chrome",
     headless: true,
+    // Chrome's built-in FAKE camera (a test pattern): no physical webcam is touched and no permission prompt appears.
+    launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] },
+    permissions: ["camera"],
     trace: "off",
     screenshot: "off",
   },
@@ -25,6 +28,7 @@ export default defineConfig({
     command: `npx vite --port ${port} --strictPort`,
     port,
     reuseExistingServer: true,
-    env: { VITE_PROXY_TARGET: backend },
+    // VITE_E2E_FACE=1 compiles the TEST-ONLY face engine in (never in a production build; `npm run check:bundle` proves it).
+    env: { VITE_PROXY_TARGET: backend, VITE_E2E_FACE: "1" },
   },
 });

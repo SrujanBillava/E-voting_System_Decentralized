@@ -1,3 +1,5 @@
+> **Update:** the frontend described here is now built; see `docs/BIOMETRICS.md` ("Frontend") for the final implementation and `npm run face:setup`.
+
 # Biometrics handoff: `AUTHENTICATED -> FACE_VERIFIED`
 
 ## Project base

@@ -149,3 +149,12 @@ describe("config: face key in .env.example and init-local-env", () => {
     assert.notEqual(seen[0], seen[1]);
   });
 });
+
+import { FACE_VERIFIED_TTL_MS } from "../../src/biometrics/constants.js";
+import { STAGE_TTL_MS, STAGES } from "../../src/auth/voterStages.js";
+
+describe("stage lifetimes stay in one place", () => {
+  it("STAGE_TTL_MS has a FACE_VERIFIED entry equal to the biometric constant", () => {
+    assert.equal(STAGE_TTL_MS[STAGES.FACE_VERIFIED], FACE_VERIFIED_TTL_MS);
+  });
+});

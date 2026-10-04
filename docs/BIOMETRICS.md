@@ -3,9 +3,10 @@
 Built on `feature/biometrics` to the brief in `docs/BIOMETRICS_HANDOFF.md`. This file describes what exists, how to
 use it, and what it does not prove.
 
-**Status.** The backend (API, storage, decision, tests) is complete. This branch contains **no frontend code**: the
-camera screens are built by the frontend owner on `feature/voting-core`. "What the browser must send" below is the
-contract they need.
+**Status.** Backend and frontend are integrated on `feature/voting-core`: the browser flow (voter camera check and admin
+enrolment) is in `frontend/src/features/face/`, the server decides everything (`AUTHENTICATED -> FACE_VERIFIED` is only ever
+performed by the backend). **A real-webcam manual test is still required** (see "Frontend" below): all automated browser
+tests use Chrome's fake camera and a test-only engine.
 
 ## What it does
 
@@ -128,26 +129,64 @@ Checked twice on the sample photos, with the same result: once on the graphics (
 off, once on the processor (WebAssembly) backend with eye refinement on. In the second run the enrol-3 simulation
 gave 564 genuine and 8,600 impostor trials: at 0.45 no impostor was accepted and 0.7% of genuine attempts were refused.
 
-### If the frontend uses Human's own descriptor instead
+### Human's own descriptor is NOT used
 
-Human's built-in descriptor (`face.embedding`, 1024 numbers, no extra model file) is simpler to produce. To accept it:
+Human's built-in 1024-number descriptor (`face.embedding`) is clearly less accurate on the same photos (about 14% equal
+error rate on single pairs) and is never read by the frontend. Templates enrolled with one model cannot be used with the
+other.
 
-* in `backend-api/src/biometrics/constants.js` change `FACE_MODEL`, `DESCRIPTOR_LENGTH` (1024) and `MATCH_THRESHOLD`;
-* update the five unit tests that pin the old numbers (`face.descriptor.test.js`, `face.http.test.js`);
-* round the values in the browser: five samples of 1024 numbers at full precision are about 108 kb, over the limit.
+## Frontend (`frontend/src/features/face/`)
 
-It is clearly less accurate on the same 84 photos (cosine similarity, enrol 3, best sample counts):
+* **One shared pipeline** (`humanEngine.ts`) for the voter check and admin enrolment; no other code touches Human, the camera
+  frames or the model.
+* **Human 3.3.6** (WASM backend, models served locally, IndexedDB model cache off) is used only for face detection, the 468-point
+  mesh (five landmarks: eye centres from mesh 33/133 and 362/263, nose 1, mouth corners 61/291, always in the UNMIRRORED frame)
+  and the eye/yaw hints for the advisory liveness movement. Human's own descriptor, emotion, antispoof and liveness are off.
+* **InsightFace GhostNet (strides1, 512-D)** makes the descriptor. The frame is aligned with a least-squares similarity transform
+  of the five landmarks onto the 112x112 ArcFace template, fed as RGB 0..1, `[1,112,112,3]`; output 512 finite numbers
+  (`toPrecision(9)`, lossless float32), validated before sending (length, finite, magnitude). Exactly one face is required.
+* **Model assets are served from the app's own origin** (`/face/human`, `/face/wasm`, `/face/ghostnet`): nothing is loaded from a
+  CDN at run time. The GhostNet weights are InsightFace training-data models (**non-commercial research use**) and are
+  therefore NOT committed. Run once after `npm install`, and in every build pipeline:
 
-| Threshold | Genuine attempts refused | Impostors accepted |
-|---|---|---|
-| 0.55 | 6.4% | 16.07% |
-| 0.60 | 11.7% | 2.31% |
-| 0.65 | 15.8% | 0.24% |
-| 0.70 | 34.9% | 0.00% |
+  ```
+  cd frontend && npm run face:setup     # downloads the pinned GhostNet files (SHA-256 verified), copies Human models + wasm
+  npm run face:check                    # verifies them
+  ```
 
-There is no threshold where both numbers are low, because same-person and different-person scores overlap
-(about 14% equal error rate on single pairs). Human's own `similarity()` function did worse than cosine (about 21%).
-Templates enrolled with one model cannot be used with the other: the voters must be enrolled again.
+  If the site sets a Content-Security-Policy, `script-src` needs `'wasm-unsafe-eval'` (otherwise Human silently falls back to
+  WebGL, which is slower). The face code is a lazy chunk, loaded only on the voter face screen and the admin enrolment dialog.
+* **Voter flow:** server status -> camera + models -> one well-positioned face -> `POST /voter/face/challenge` -> the requested
+  BLINK / TURN_LEFT / TURN_RIGHT observed locally -> look straight -> 512-D descriptor -> `POST /voter/face/verify` -> re-read
+  `GET /voter/status`. An expired or invalid challenge is replaced by a new one, never reused. Mismatch shows "Face could not be
+  verified." with the attempts remaining (never a score); a locked session says to ask a polling official and has no unlock button.
+  Specific messages exist for every face error code, camera denied/missing, model load failure and network failure.
+* **Admin flow:** Voters -> Biometrics: 3 good samples ("Sample N of 3", optionally up to 5) through `PUT /admin/voters/:id/face`;
+  re-enrol and remove (with confirmation) only while the election is in Setup; descriptors and photos are never displayed or stored.
+* **Camera and privacy:** frames never leave the browser (only the 512 numbers are sent), nothing is written to local/session
+  storage, IndexedDB or downloads, and the camera is stopped on success, logout, expiry, End session, route change, unmount and
+  dialog close.
+* **Testing without a camera:** `VITE_E2E_FACE=1` compiles in a test-only engine (scripted movement, synthetic descriptors).
+  `npm run check:bundle` proves a normal build does not contain it, contains no secrets, and keeps the face code lazy.
+
+### Honest limits (read before relying on this)
+
+* **Liveness is advisory.** The blink/turn check is measured in the browser; a determined attacker controlling the browser can
+  fake it. It is not proof of liveness and not an anti-spoofing guarantee. The decision that counts is the server's
+  descriptor comparison and attempt limit.
+* **0.45 is provisional.** It was chosen on ~27-82 studio photos (0 impostors accepted, about 0.9% of genuine refused with
+  3 enrolment samples). That is a measurement on a small sample, not a false-accept rate; tune it on real booth cameras.
+* Descriptors may differ slightly between browsers/GPUs; enrol and verify on the same kind of terminal where possible.
+* Heavily rolled heads (45 degrees or more) can produce an unrelated descriptor without any error; the server mismatch check
+  is the control.
+
+### Real webcam manual test (still required)
+
+Run the stack, `npm run face:setup`, open `/admin` and enrol a real person, Open the election, then on `/vote` sign in and pass
+the check. In DevTools check: Network shows only same-origin requests (no CDN) and no request body larger than ~35 KB containing
+anything except `challenge`, `descriptor` and `liveness`; Console is free of descriptors/challenges; Application shows nothing
+stored; the camera light goes off on success, End session, tab close and navigation away. Also try glasses, poor light, a
+photo on a phone screen (it may pass: liveness is advisory), another person (must fail), and three failures (must lock).
 
 ## What is stored
 
@@ -196,29 +235,16 @@ limit and lockout, concurrency, the stage transition and its lifetime, and priva
 
 * The attempt limit is per session, as specified. A voter who logs in again gets three new attempts; login itself
   is rate limited and allows one live session per voter.
-* Deleting a voter does not delete their template. The row is encrypted and bound to that voter's id, so it is
-  unusable, but `voterService.remove()` should also call `FaceTemplate.deleteOne({ voterId })`. That file is shared,
-  so the one-line change is left to the merge.
+* Deleting a voter now also deletes their face template and pending challenges (`voterService.remove()`, scoped to that
+  voter; a failed cleanup is audited as `VOTER_FACE_CLEANUP_FAILED`). Opening an election is refused (`PREFLIGHT_FAILED`,
+  `face.templates`) while an enrolled template cannot be read with the configured key.
+* FACE_VERIFIED lasts 3 minutes.
 * `express.json` is limited to 100 kb. Five samples are about 25 kb when the browser rounds to 6 decimals.
 * `src/auth/secretBox.js` accepts shortened GCM tags, which is Node's default. The template code checks the sizes
   itself. The same hardening would help the admin TOTP secrets: pass `{ authTagLength: 16 }` to `createDecipheriv`.
   That file is shared, so it is left to its owner.
 
-## Merging with `feature/voting-core`
+## Merge note
 
-Checked against `feature/voting-core` at `570e5bd`. Git merges every shared file by itself except one:
-
-**`backend-api/src/server.js`.** Keep the voting-core version of the block and add the face service to it:
-
-```js
-    const voter = voterWiring(audit);
-    const faceService = createFaceService({ Voter, VoterSession, FaceTemplate, FaceChallenge, authService: voter.authService, chain, audit, templateKey: config.secrets.faceTemplateKey });
-    voter.faceService = faceService;
-    const publicService = createPublicService({ chain, audit });
-    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService, faceService }, voter, publicService });
-```
-
-The three imports at the top of the file (`FaceChallenge`, `FaceTemplate`, `createFaceService`) merge by themselves.
-
-`backend-api/test/helpers/e2e-fixture.js` drops the database under a running server. Add `FaceTemplate.syncIndexes()`
-and `FaceChallenge.syncIndexes()` to its `reset` list, next to the other models, so the unique indexes come back.
+`feature/biometrics` (9c578f9) was merged into `feature/voting-core`; `server.js` wires `createFaceService` into the admin and
+voter routers, and `e2e-fixture.js` syncs the Face model indexes.
