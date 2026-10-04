@@ -2,6 +2,7 @@ import type { Human, Tensor } from "@vladmandic/human";
 import { alignmentFor, canvasMatrix, eyeOpenness, landmarks5, yawRatio } from "./align.ts";
 import { ASSETS, CROP_SIZE, POSITION } from "./config.ts";
 import { DescriptorError, validateDescriptor } from "./descriptor.ts";
+import { snapshotFrame } from "./snapshot.ts";
 import { FaceEngineError, type FaceEngine, type FaceMeasurement, type FrameSource } from "./types.ts";
 
 /**
@@ -92,18 +93,6 @@ export class HumanGhostNetEngine implements FaceEngine {
     return Array.from(data as Float32Array);
   }
 
-  /** A private copy of the current frame, so detection and cropping use exactly the same pixels. */
-  private snapshot(source: FrameSource): HTMLCanvasElement {
-    const width = source instanceof HTMLVideoElement ? source.videoWidth : source instanceof HTMLImageElement ? source.naturalWidth : source.width;
-    const height = source instanceof HTMLVideoElement ? source.videoHeight : source instanceof HTMLImageElement ? source.naturalHeight : source.height;
-    if (!width || !height) throw new FaceEngineError("no-face", "The camera frame is not ready.");
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    canvas.getContext("2d")!.drawImage(source, 0, 0, width, height); // never mirrored
-    return canvas;
-  }
-
   private async analyse(frame: HTMLCanvasElement): Promise<FaceMeasurement> {
     const human = this.human;
     if (!human) throw new FaceEngineError("load", "The face engine is not loaded.");
@@ -123,20 +112,23 @@ export class HumanGhostNetEngine implements FaceEngine {
   measure(source: FrameSource): Promise<FaceMeasurement> {
     return this.serial(async () => {
       const t = performance.now();
-      const m = await this.analyse(this.snapshot(source));
+      const m = await this.analyse(snapshotFrame(source));
       this.stats.lastMeasureMs = Math.round(performance.now() - t);
       return m;
     });
   }
 
-  describe(source: FrameSource): Promise<{ descriptor: number[]; measurement: FaceMeasurement }> {
+  describe(source: FrameSource, accept?: (measurement: FaceMeasurement) => boolean): Promise<{ descriptor: number[]; measurement: FaceMeasurement }> {
     return this.serial(async () => {
       const t = performance.now();
-      const frame = this.snapshot(source);
+      const frame = snapshotFrame(source);
       const measurement = await this.analyse(frame);
       if (measurement.faceCount === 0) throw new FaceEngineError("no-face", "No face was found.");
       if (measurement.faceCount > 1) throw new FaceEngineError("many-faces", "More than one face was found.");
       if (!measurement.face) throw new FaceEngineError("no-face", "The face landmarks were not clear.");
+
+      // Recheck the actual capture frame BEFORE GhostNet: the person may blink again after settling.
+      if (accept && !accept(measurement)) throw new FaceEngineError("no-face", "Hold still with your eyes open and look at the camera.");
 
       // Straighten and crop: one similarity transform maps the five landmarks onto the template, the frame is drawn through it.
       const crop = document.createElement("canvas");
