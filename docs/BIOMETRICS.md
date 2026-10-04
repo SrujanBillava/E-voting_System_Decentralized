@@ -137,8 +137,9 @@ other.
 
 ## Frontend (`frontend/src/features/face/`)
 
-* **One shared pipeline** (`humanEngine.ts`) for the voter check and admin enrolment; no other code touches Human, the camera
-  frames or the model.
+* **One shared pipeline** (`humanEngine.ts`) for the voter check and admin enrolment. `snapshot.ts` bounds the longest frame side
+  to 1920 pixels before detection, using the same aspect ratio (within integer-pixel rounding) and no full-resolution intermediate
+  canvas. Human landmarks and the GhostNet crop both use that bounded, unmirrored frame, including for 4K/8K sources.
 * **Human 3.3.6** (WASM backend, models served locally, IndexedDB model cache off) is used only for face detection, the 468-point
   mesh (five landmarks: eye centres from mesh 33/133 and 362/263, nose 1, mouth corners 61/291, always in the UNMIRRORED frame)
   and the eye/yaw hints for the advisory liveness movement. Human's own descriptor, emotion, antispoof and liveness are off.
@@ -154,11 +155,17 @@ other.
   npm run face:check                    # verifies them
   ```
 
+  `face:check` checks presence of Human/WASM copies and pinned hashes of GhostNet. It does not detect or repair corrupted existing
+  Human/WASM copies; compare them with the installed packages and replace affected copies explicitly when troubleshooting.
+
   If the site sets a Content-Security-Policy, `script-src` needs `'wasm-unsafe-eval'` (otherwise Human silently falls back to
   WebGL, which is slower). The face code is a lazy chunk, loaded only on the voter face screen and the admin enrolment dialog.
 * **Voter flow:** server status -> camera + models -> one well-positioned face -> `POST /voter/face/challenge` -> the requested
   BLINK / TURN_LEFT / TURN_RIGHT observed locally -> look straight -> 512-D descriptor -> `POST /voter/face/verify` -> re-read
-  `GET /voter/status`. An expired or invalid challenge is replaced by a new one, never reused. Mismatch shows "Face could not be
+  `GET /voter/status`. BLINK requires an open-eye baseline, closure and reopening, followed by three consecutive usable, frontal,
+  open-eye frames. A second closure resets settling; the actual capture frame is checked again before GhostNet inference. A rejected
+  capture starts a new challenge without submitting a descriptor or consuming a server comparison attempt.
+  An expired or invalid challenge is replaced by a new one, never reused. Mismatch shows "Face could not be
   verified." with the attempts remaining (never a score); a locked session says to ask a polling official and has no unlock button.
   Specific messages exist for every face error code, camera denied/missing, model load failure and network failure.
 * **Admin flow:** Voters -> Biometrics: 3 good samples ("Sample N of 3", optionally up to 5) through `PUT /admin/voters/:id/face`;

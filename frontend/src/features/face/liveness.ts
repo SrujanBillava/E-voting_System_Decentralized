@@ -41,6 +41,11 @@ export class LivenessTracker {
     return this.done;
   }
 
+  /** Open relative to this challenge's learned baseline, including AFTER the blink was observed. */
+  eyesOpen(eyeOpenness: number | undefined): boolean {
+    return this.baseline !== null && this.baseline > 0 && eyeOpenness !== undefined && Number.isFinite(eyeOpenness) && eyeOpenness > this.baseline * LIVENESS.blinkReopenRatio;
+  }
+
   private pushBlink(s: LivenessSample) {
     if (s.eyeOpenness === undefined) return;
     const e = s.eyeOpenness;

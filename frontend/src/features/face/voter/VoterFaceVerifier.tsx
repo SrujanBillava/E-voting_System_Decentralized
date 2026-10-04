@@ -8,7 +8,8 @@ import type { FaceAdapterProps } from "../../voter/face/registry";
 import { CameraError } from "../camera.ts";
 import { CAPTURE, POSITION } from "../config.ts";
 import { ACTION_TEXT, positionGuidance } from "../guidance.ts";
-import { isFrontal, LivenessTracker } from "../liveness.ts";
+import { LivenessTracker } from "../liveness.ts";
+import { CaptureReadiness } from "../capture.ts";
 import { FaceEngineError, type FaceEngine, type FaceMeasurement } from "../types.ts";
 import { FaceCameraView } from "../FaceCameraView";
 import { useFaceCamera } from "../useFaceCamera.ts";
@@ -203,18 +204,18 @@ function FaceCheck({ onServerStageMayHaveChanged, onNeedsOfficial, startAttempts
           }
 
           // ---- look straight, hold still, then capture
-          let settled = 0;
+          const capture = new CaptureReadiness(tracker);
+          let settled = false;
           const settleBy = performance.now() + CAPTURE.settleTimeoutMs;
-          setUi({ kind: "settle", text: "Look straight at the camera. Hold still." });
-          say("Look straight at the camera and hold still.");
-          while (alive() && settled < CAPTURE.settleFramesNeeded && performance.now() < settleBy && deadline - performance.now() > CAPTURE.minRemainingChallengeMs) {
+          setUi({ kind: "settle", text: "Look straight at the camera with your eyes open. Hold still." });
+          say("Look straight at the camera with your eyes open and hold still.");
+          while (alive() && !settled && performance.now() < settleBy && deadline - performance.now() > CAPTURE.minRemainingChallengeMs) {
             const m = await look();
-            const ok = positionGuidance(m).ok && m.face !== undefined && isFrontal(m.face.yawRatio, tracker.neutralYaw);
-            settled = ok ? settled + 1 : 0;
+            settled = capture.push(m);
             await sleep(POSITION.frameIntervalMs);
           }
           if (!alive()) return;
-          if (settled < CAPTURE.settleFramesNeeded) {
+          if (!settled) {
             note = "That check timed out. Let's start again.";
             continue;
           }
@@ -222,7 +223,7 @@ function FaceCheck({ onServerStageMayHaveChanged, onNeedsOfficial, startAttempts
           setUi({ kind: "capturing" });
           let descriptor: number[];
           try {
-            descriptor = (await engine.describe(video)).descriptor;
+            descriptor = (await engine.describe(video, capture.accepts)).descriptor;
           } catch (err) {
             if (err instanceof FaceEngineError && (err.kind === "no-face" || err.kind === "many-faces")) {
               note = err.kind === "many-faces" ? "More than one face was visible. Let's start again." : "Your face was not clear. Let's start again.";

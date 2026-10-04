@@ -7,7 +7,7 @@ export interface Point {
 export type FrameSource = HTMLVideoElement | HTMLCanvasElement | HTMLImageElement | ImageBitmap;
 
 /**
- * What the engine learned from one frame. All coordinates are in pixels of the frame exactly as the camera delivered it (not mirrored).
+ * What the engine learned from one frame. All coordinates are in pixels of the bounded analysis frame (not mirrored).
  * Ratios are unit-free so they do not depend on the camera resolution.
  */
 export interface FaceMeasurement {
@@ -30,8 +30,8 @@ export interface FaceEngine {
   readonly kind: "human-ghostnet" | "e2e-fake";
   load(): Promise<void>;
   measure(source: FrameSource): Promise<FaceMeasurement>;
-  /** Detect, align, run GhostNet: a validated 512-number descriptor of the single face in the frame. */
-  describe(source: FrameSource): Promise<{ descriptor: number[]; measurement: FaceMeasurement }>;
+  /** Detect, optionally check that same frame BEFORE inference, align and run GhostNet (512 numbers). */
+  describe(source: FrameSource, accept?: (measurement: FaceMeasurement) => boolean): Promise<{ descriptor: number[]; measurement: FaceMeasurement }>;
   dispose(): void;
 }
 

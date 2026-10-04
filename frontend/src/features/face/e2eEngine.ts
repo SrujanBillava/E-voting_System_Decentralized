@@ -83,12 +83,13 @@ export class E2EFaceEngine implements FaceEngine {
     };
   }
 
-  async describe(source: FrameSource): Promise<{ descriptor: number[]; measurement: FaceMeasurement }> {
+  async describe(source: FrameSource, accept?: (measurement: FaceMeasurement) => boolean): Promise<{ descriptor: number[]; measurement: FaceMeasurement }> {
     const s = script();
     if (s.describeError) throw new FaceEngineError(s.describeError === "inference" ? "inference" : s.describeError, "Test-injected failure.");
     const measurement = await this.measure(source);
     if (measurement.faceCount === 0) throw new FaceEngineError("no-face", "No face was found.");
     if (measurement.faceCount > 1) throw new FaceEngineError("many-faces", "More than one face was found.");
+    if (accept && !accept(measurement)) throw new FaceEngineError("no-face", "The capture frame was not usable.");
     if (!s.descriptor || s.descriptor.length !== DESCRIPTOR_LENGTH) throw new FaceEngineError("invalid-descriptor", "No test descriptor was provided.");
     return { descriptor: [...s.descriptor], measurement };
   }
