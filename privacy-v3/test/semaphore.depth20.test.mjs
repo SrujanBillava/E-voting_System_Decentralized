@@ -16,7 +16,7 @@ import { Project, maybeGetSnarkArtifacts } from "@zk-kit/artifacts";
 import { ROOT, semaphoreArtifacts } from "../src/artifacts.js";
 import { ballotHash } from "../src/ballot.js";
 import { identityCiphertext } from "../src/elgamal.js";
-import { K_MAX, SEMAPHORE_DEPTH, TEST_CONTEXT, constituencyIdValue, electionScope } from "../src/params.js";
+import { FIELD_PRIME, K_MAX, SEMAPHORE_DEPTH, TEST_CONTEXT, constituencyIdValue, electionScope } from "../src/params.js";
 import { makeGroup, nullifierOf, proveMembership, verifyMembership } from "../src/semaphore.js";
 import { shutdownProver } from "../src/validity.js";
 import { fakeVoter } from "../testing/fake-voters.js";
@@ -59,6 +59,7 @@ function trapNetwork() {
   };
 }
 
+const vectors = JSON.parse(fs.readFileSync(path.join(ROOT, "spec", "vectors.json"), "utf8"));
 const sha256 = (file) => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 const ctx = TEST_CONTEXT;
 const scope = electionScope(ctx);
@@ -108,6 +109,21 @@ describe("Semaphore depth 20 with the pinned local artifacts", { skip: SKIP_NO_A
     // the message does not change the nullifier
     const otherMessage = await proveMembership({ identity: voters[0], group, message: message ^ 1n, scope });
     assert.equal(otherMessage.nullifier, at20.nullifier);
+  });
+
+  it("the frozen full-width keccak scope goes through the official Semaphore V4 API unchanged: proof.scope echoes it, the nullifier is Poseidon(semaphoreHash(scope), secret), and a truncated or reduced scope does not verify", async () => {
+    const wide = BigInt(vectors.scope.vectors.find((v) => v.name.includes("lowest 8 bits")).scope);
+    assert.ok(wide >= 1n << 255n && wide > FIELD_PRIME, "a scope above both 2^255 and the BN254 modulus: nothing may reduce or truncate it");
+    const proof = await proveMembership({ identity: voters[0], group, message, scope: wide });
+    assert.equal(proof.scope, wide.toString());
+    assert.equal(proof.nullifier, nullifierOf(voters[0], wide).toString());
+    assert.equal(await verifyMembership(proof), true);
+    for (const [name, altered] of Object.entries({ "scope >> 8": wide >> 8n, "scope mod field": wide % FIELD_PRIME, "lowest bit flipped": wide ^ 1n })) {
+      assert.equal(await verifyMembership({ ...proof, scope: altered.toString() }), false, name);
+    }
+    // election ids that differ only in their lowest bits now give different scopes, hence different nullifiers for the same identity
+    assert.notEqual(nullifierOf(voters[0], electionScope({ ...ctx, electionId: ctx.electionId ^ 1n })), nullifierOf(voters[0], scope));
+    assert.notEqual(nullifierOf(voters[0], electionScope({ ...ctx, electionId: ctx.electionId ^ 0xffn })), nullifierOf(voters[0], scope));
   });
 
   it("a depth-20 proof is bound to its depth, message, scope, root and nullifier: changing any of them breaks verification", async () => {

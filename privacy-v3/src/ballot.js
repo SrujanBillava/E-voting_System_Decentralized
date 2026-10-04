@@ -1,7 +1,7 @@
 // Ballot construction: one-hot vector, per-slot encryption, ballot hash and the validity-circuit input/public signals.
 import { AbiCoder, keccak256, toBeHex } from "ethers";
 import { identityCiphertext, encrypt, randomScalar } from "./elgamal.js";
-import { BALLOT_TAG, K_MAX } from "./params.js";
+import { BALLOT_HASH_ABI_TYPES, BALLOT_TAG, K_MAX } from "./params.js";
 
 /** [0,..,1,..,0] of length K_MAX with the 1 at `choice` (0-based, choice < kc). */
 export function oneHot(choice, kc) {
@@ -47,12 +47,12 @@ export function ciphertextCoordinates(ciphertexts) {
  *
  *   ballotHash = uint256( keccak256( abi.encode( bytes32 tag, uint256 chainId, address contract, bytes32 electionId, bytes32 constituencyId, uint256[64] coords ) ) )
  *
- * `coords` are the 64 ciphertext coordinates of ciphertextCoordinates() (static array: 64 consecutive 32-byte words). The types above are the
- * prototype's reading of the frozen text and must be matched exactly by the contract.
+ * `coords` are the 64 ciphertext coordinates of ciphertextCoordinates() (a STATIC uint256[64]: 64 consecutive 32-byte words, no offset and no length word).
+ * FROZEN: see ENCODINGS.md and spec/vectors.json. abi.encode only, never abi.encodePacked.
  */
 export function ballotHash(ctx, constituencyId, ciphertexts) {
   const encoded = AbiCoder.defaultAbiCoder().encode(
-    ["bytes32", "uint256", "address", "bytes32", "bytes32", "uint256[64]"],
+    BALLOT_HASH_ABI_TYPES,
     [BALLOT_TAG, ctx.chainId, toBeHex(ctx.contractAddress, 20), toBeHex(ctx.electionId, 32), toBeHex(constituencyId, 32), ciphertextCoordinates(ciphertexts)],
   );
   return BigInt(keccak256(encoded));
