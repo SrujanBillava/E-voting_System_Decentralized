@@ -6,7 +6,7 @@ import { AppError } from "../utils/errors.js";
  * keeps its own "open" flag. Transactions are sent by the OWNER signer and the response is built only
  * from what the chain reports after the transaction is confirmed.
  */
-export function createElectionService({ chain, healthService, auth, audit, ownerQueue, voterStats }) {
+export function createElectionService({ chain, healthService, auth, audit, ownerQueue, voterStats, faceReadiness }) {
   const ownerContract = () => chain.contract.connect(chain.signers.owner);
 
   const summarize = (report) => ({
@@ -68,6 +68,13 @@ export function createElectionService({ chain, healthService, auth, audit, owner
           const blockers = [...new Set([...failed, ...(config?.status === "warn" ? ["election.config"] : [])])];
           await audit.record({ action: "ELECTION_OPEN_REJECTED", result: "failure", adminId: ctx.adminId, requestId: ctx.requestId, ip: ctx.ip, meta: { reason: "preflight_failed", failedChecks: blockers } });
           throw new AppError(409, "PREFLIGHT_FAILED", `Preflight failed: ${blockers.join(", ")}`);
+        }
+
+        // Biometrics: opening freezes enrolment, so every enrolled face must be readable NOW (a lost or mistyped template key would otherwise strand voters).
+        const face = faceReadiness ? await faceReadiness() : { unreadable: 0 };
+        if (face.unreadable > 0) {
+          await audit.record({ action: "ELECTION_OPEN_REJECTED", result: "failure", adminId: ctx.adminId, requestId: ctx.requestId, ip: ctx.ip, meta: { reason: "preflight_failed", failedChecks: ["face.templates"] } });
+          throw new AppError(409, "PREFLIGHT_FAILED", `Preflight failed: face.templates (${face.unreadable} enrolled face${face.unreadable === 1 ? "" : "s"} cannot be read with the configured key; enrol them again)`);
         }
 
         await auth.verifyStepUp({ adminId: ctx.adminId, totp, ip: ctx.ip, requestId: ctx.requestId });

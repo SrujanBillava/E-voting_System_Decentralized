@@ -1,5 +1,6 @@
 import { ApiError, request } from "./http";
 import { adminSession } from "./adminSession";
+import type { AdminFaceInfo } from "./biometricApi";
 import type { AdminCandidate, AdminConstituency, AdminElection, AdminVoter, VoterPage } from "./types";
 
 /** Authenticated call: attach the in-memory token; on 401 refresh ONCE (shared with every other caller) and retry once. */
@@ -38,6 +39,10 @@ export const adminApi = {
   updateVoter: (id: string, changes: Partial<Pick<AdminVoter, "name" | "email" | "constituencyCode" | "status">>) => call<{ voter: AdminVoter }>("PATCH", `/admin/voters/${id}`, changes),
   deleteVoter: (id: string) => call<void>("DELETE", `/admin/voters/${id}`),
   resetVoterPassword: (id: string, newPassword: string) => call<void>("POST", `/admin/voters/${id}/password-reset`, { newPassword }),
+
+  faceInfo: (id: string) => call<AdminFaceInfo>("GET", `/admin/voters/${id}/face`),
+  enrolFace: (id: string, descriptors: number[][]) => call<{ voter: { id: string; voterId: string; faceEnrolled: boolean }; face: { sampleCount: number; enrolledAt: string; algorithm: string } }>("PUT", `/admin/voters/${id}/face`, { descriptors }),
+  removeFace: (id: string) => call<void>("DELETE", `/admin/voters/${id}/face`),
 
   constituencies: () => call<{ constituencies: AdminConstituency[] }>("GET", "/admin/constituencies"),
   addConstituency: (code: string, name: string) => call<{ txHash: string; constituency: AdminConstituency }>("POST", "/admin/constituencies", { code, name }),

@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, LazyExoticComponent } from "react";
 
 /**
  * The seam where the real face-verification client plugs in once feature/biometrics is merged.
@@ -16,11 +16,12 @@ export interface FaceAdapterProps {
   onNeedsOfficial: () => void;
 }
 
-let registered: ComponentType<FaceAdapterProps> | null = null;
+type FaceComponent = ComponentType<FaceAdapterProps> | LazyExoticComponent<ComponentType<FaceAdapterProps>>;
+let registered: FaceComponent | null = null;
 
 /** Called once at startup by the biometric integration (not by this step). */
-export function registerFaceVerifier(component: ComponentType<FaceAdapterProps> | null): void {
+export function registerFaceVerifier(component: FaceComponent | null): void {
   registered = component;
 }
-export const getFaceVerifier = (): ComponentType<FaceAdapterProps> | null => registered;
+export const getFaceVerifier = (): FaceComponent | null => registered;
 export const hasFaceVerifier = (): boolean => registered !== null;

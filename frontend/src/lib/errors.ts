@@ -24,6 +24,14 @@ const MESSAGES: Record<string, string> = {
   TX_REVERTED: "Your ballot could not be completed. Please see a polling official; do not try to vote again on your own.",
   CAST_IN_PROGRESS: "Your ballot is being processed. Please wait.",
   ALREADY_VOTED: "A ballot has already been accepted for this voter.",
+  FACE_MISMATCH: "Face could not be verified.",
+  FACE_LOCKED: "Face verification is locked for this session. Please ask a polling official for assistance.",
+  FACE_NOT_ENROLLED: "No face is enrolled for this voter. Please ask a polling official.",
+  FACE_CHALLENGE_INVALID: "That face check timed out. A new one will start.",
+  FACE_REENROLMENT_REQUIRED: "This voter's face needs to be enrolled again. Please ask a polling official.",
+  FACE_LIVENESS_FAILED: "The face check could not confirm the requested movement. Please try again.",
+  FACE_CHALLENGE_LIMIT: "Too many face checks were started in this session. Please ask a polling official for assistance.",
+  FACE_SAMPLES_INCONSISTENT: "The samples do not look like the same person. Capture them again.",
   RECONCILIATION_REQUIRED: "Your ballot needs to be checked by an election official. Please stay at the terminal and ask for help.",
   RECEIPT_NOT_FOUND: "No such transaction was found.",
   RECEIPT_INVALID: "This transaction is not a recorded ballot of this election.",
@@ -35,6 +43,9 @@ const MESSAGES: Record<string, string> = {
   PREFLIGHT_FAILED: "The system checks did not pass, so the election was not opened.",
   WRONG_PHASE: "The election is not in the right phase for that action.",
 };
+
+/** Wording for a known code (without an ApiError instance). */
+export const messageForCode = (code: string): string => MESSAGES[code] ?? "Something went wrong. Please try again.";
 
 export function messageFor(err: unknown): string {
   if (isApiError(err)) return MESSAGES[err.code] ?? err.message;

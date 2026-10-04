@@ -93,7 +93,12 @@ export function createFaceService({ Voter, VoterSession, FaceTemplate, FaceChall
         if (!isDuplicate(err)) throw err;
         await FaceTemplate.updateOne({ voterId: voter._id }, { $set: fields }); // a parallel enrolment inserted the row first
       }
-      await Voter.updateOne({ _id: voter._id }, { $set: { faceEnrolled: true } });
+      const flagged = await Voter.updateOne({ _id: voter._id }, { $set: { faceEnrolled: true } });
+      if (flagged?.matchedCount === 0) {
+        // The voter was deleted while this enrolment was in flight: biometric data must not outlive the voter.
+        await FaceTemplate.deleteOne({ voterId: voter._id });
+        throw new AppError(404, "NOT_FOUND", "Voter not found");
+      }
       await audit.record({ action: "FACE_ENROLLED", result: "success", ...who, meta: { ...meta, sampleCount: samples.length } });
       return { voter: { id: String(voter._id), voterId: voter.voterId, faceEnrolled: true }, face: { sampleCount: samples.length, enrolledAt, algorithm: FACE_MODEL } };
     },
@@ -106,6 +111,29 @@ export function createFaceService({ Voter, VoterSession, FaceTemplate, FaceChall
       await Voter.updateOne({ _id: voter._id }, { $set: { faceEnrolled: false } });
       await FaceTemplate.deleteOne({ voterId: voter._id });
       await audit.record({ action: "FACE_ENROLMENT_REMOVED", result: "success", adminId: ctx.adminId, requestId: ctx.requestId, ip: ctx.ip, meta: { voterDbId: String(voter._id), voterId: voter.voterId } });
+    },
+
+    /**
+     * Every stored template must still be readable with the CONFIGURED key and be in the current format. Used before the election opens:
+     * once it is Open nothing can be re-enrolled, so a rotated or mistyped key would strand every enrolled voter. Counts only.
+     */
+    async templateReadiness() {
+      await ready();
+      let total = 0;
+      let unreadable = 0;
+      for await (const template of FaceTemplate.find({}).select("+box").cursor()) {
+        total++;
+        if (!usable(template)) {
+          unreadable++;
+          continue;
+        }
+        try {
+          openTemplate(templateKey, String(template.voterId), template.box);
+        } catch {
+          unreadable++;
+        }
+      }
+      return { total, unreadable };
     },
 
     /** What an admin may see about an enrolment: facts about it, never the template. */

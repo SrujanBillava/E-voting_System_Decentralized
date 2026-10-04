@@ -1,4 +1,4 @@
-import { createElement, useState } from "react";
+import { Suspense, createElement, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { adminApi } from "../../api/adminApi";
 import type { AdminVoter } from "../../api/types";
@@ -21,15 +21,17 @@ const PAGE_SIZE = 25;
  */
 export default function BiometricsPage() {
   usePageTitle("Biometrics", "VoteChain Administration");
-  const { election } = useAdminElection();
+  const { election, refresh: refreshElection } = useAdminElection();
   const [params, setParams] = useSearchParams();
   const page = Math.max(1, Number.parseInt(params.get("page") ?? "1", 10) || 1);
   const face: FaceFilter = params.get("face") === "enrolled" ? "enrolled" : params.get("face") === "not-enrolled" ? "not-enrolled" : "all";
   const voters = useAsync(() => adminApi.voters({ page, limit: PAGE_SIZE }), [page]);
   const [target, setTarget] = useState<AdminVoter | null>(null);
   const [open, setOpen] = useState(false);
+  const [panelBusy, setPanelBusy] = useState(false);
 
   const panel = getEnrolmentPanel();
+  const locked = election !== null && election.phase !== "Setup"; // enrolment changes are Setup-only (the server enforces it too)
   const data = voters.data;
   const rows = data?.voters.filter((v) => (face === "enrolled" ? v.faceEnrolled : face === "not-enrolled" ? !v.faceEnrolled : true)) ?? [];
 
@@ -45,13 +47,21 @@ export default function BiometricsPage() {
   return (
     <>
       <PageHead eyebrow="Biometrics" title="Face enrolment">
-        See which voters have an enrolled face, and enrol or re-enrol them once enrolment is connected.
+        See which voters have an enrolled face, and enrol, re-enrol or remove a face. Changes are possible only while the election is in Setup.
       </PageHead>
 
       {!panel && (
         <div className="mb-4">
           <Alert tone="info" title="Face enrolment is not connected to this console yet">
             The enrol actions below are switched off. Voters already enrolled by another route are shown as enrolled.
+          </Alert>
+        </div>
+      )}
+
+      {locked && (
+        <div className="mb-4">
+          <Alert tone="info" title="Face enrolment is locked">
+            The election is {election?.phase}. Enrolment can no longer be changed; you can still see who is enrolled.
           </Alert>
         </div>
       )}
@@ -129,13 +139,13 @@ export default function BiometricsPage() {
                         className="btn btn-secondary btn-sm"
                         disabled={!panel}
                         aria-describedby={panel ? undefined : "enrol-note"}
-                        aria-label={`${v.faceEnrolled ? "Re-enrol" : "Enrol"} face for ${v.name}`}
+                        aria-label={locked ? `View face enrolment for ${v.name}` : `${v.faceEnrolled ? "Re-enrol" : "Enrol"} face for ${v.name}`}
                         onClick={() => {
                           setTarget(v);
                           setOpen(true);
                         }}
                       >
-                        {v.faceEnrolled ? "Re-enrol" : "Enrol"}
+                        {locked ? "View" : v.faceEnrolled ? "Re-enrol" : "Enrol"}
                       </button>
                     </td>
                   </tr>
@@ -155,15 +165,18 @@ export default function BiometricsPage() {
       {panel && target && (
         <Dialog
           open={open}
-          title={`${target.faceEnrolled ? "Re-enrol" : "Enrol"} face for ${target.name}`}
+          title={locked ? `Face enrolment of ${target.name}` : `${target.faceEnrolled ? "Re-enrol" : "Enrol"} face for ${target.name}`}
           onClose={() => setOpen(false)}
+          busy={panelBusy}
           actions={
             <button type="button" className="btn btn-secondary" onClick={() => setOpen(false)}>
               Close
             </button>
           }
         >
-          {createElement(panel, { voter: { id: target.id, voterId: target.voterId, name: target.name, faceEnrolled: target.faceEnrolled }, onEnrolmentChanged: voters.reload, onClose: () => setOpen(false) })}
+          <Suspense fallback={<LoadingState label="Loading face enrolment…" />}>
+            {createElement(panel, { voter: { id: target.id, voterId: target.voterId, name: target.name, faceEnrolled: target.faceEnrolled }, onEnrolmentChanged: () => { voters.reload(); void refreshElection(); }, onClose: () => setOpen(false), canModify: election?.phase === "Setup", onBusyChange: setPanelBusy })}
+          </Suspense>
         </Dialog>
       )}
     </>

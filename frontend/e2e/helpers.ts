@@ -151,8 +151,10 @@ export async function adminLogin(page: Page, secret: string, used: Set<string>, 
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 
-export async function kioskSignIn(page: Page, identifier: string, password = VOTER_PASSWORD) {
+/** `script` configures the TEST-ONLY face engine for this sign-in (applied after navigation, which resets it to the initial script). */
+export async function kioskSignIn(page: Page, identifier: string, password = VOTER_PASSWORD, script?: Record<string, unknown>) {
   await page.goto("/vote");
+  if (script) await page.evaluate((patch) => Object.assign(((window as unknown as { __E2E_FACE__?: object }).__E2E_FACE__ ??= {}), patch), script);
   await page.getByRole("button", { name: "Begin" }).click();
   await page.getByLabel("Voter ID or email").fill(identifier);
   await page.getByLabel("Password").fill(password);
@@ -160,7 +162,7 @@ export async function kioskSignIn(page: Page, identifier: string, password = VOT
 }
 
 export async function newContext(browser: import("@playwright/test").Browser, opts: Parameters<import("@playwright/test").Browser["newContext"]>[0] = {}): Promise<BrowserContext> {
-  return browser.newContext({ baseURL: `http://localhost:${process.env.E2E_PORT ?? 5173}`, ...opts });
+  return browser.newContext({ baseURL: `http://localhost:${process.env.E2E_PORT ?? 5173}`, permissions: ["camera"], ...opts });
 }
 
 export const VIEWPORTS = [

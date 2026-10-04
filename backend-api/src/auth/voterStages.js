@@ -20,6 +20,6 @@ export const SESSION_IDLE_MS = 120 * 1000;
 export const AUTHORIZATION_TTL_MS = 180 * 1000;
 /** The receipt screen is short-lived on purpose: a kiosk session must not stay authenticated after the vote. */
 export const COMPLETED_TTL_MS = 60 * 1000;
-export const STAGE_TTL_MS = Object.freeze({ [STAGES.AUTHENTICATED]: 5 * 60 * 1000, [STAGES.ELIGIBLE]: 3 * 60 * 1000, [STAGES.AUTH_ISSUED]: AUTHORIZATION_TTL_MS, [STAGES.SUBMITTED]: 10 * 60 * 1000, [STAGES.COMPLETED]: COMPLETED_TTL_MS });
+export const STAGE_TTL_MS = Object.freeze({ [STAGES.AUTHENTICATED]: 5 * 60 * 1000, [STAGES.ELIGIBLE]: 3 * 60 * 1000, [STAGES.AUTH_ISSUED]: AUTHORIZATION_TTL_MS, [STAGES.SUBMITTED]: 10 * 60 * 1000, [STAGES.COMPLETED]: COMPLETED_TTL_MS, [STAGES.FACE_VERIFIED]: 3 * 60 * 1000 /* = FACE_VERIFIED_TTL_MS in biometrics/constants.js (a unit test keeps them equal) */ });
 /** Receipt / recovery actions may continue in a Closed election, but only for sessions that already reached the chain. */
 export const CLOSED_OK_STAGES = Object.freeze([STAGES.AUTH_ISSUED, STAGES.SUBMITTED, STAGES.COMPLETED]);

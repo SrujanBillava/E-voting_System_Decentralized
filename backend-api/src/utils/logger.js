@@ -4,7 +4,7 @@ const LEVELS = { debug: 10, info: 20, warn: 30, error: 40, silent: 100 };
 
 // Field NAMES whose values are never written, whatever they contain.
 const SENSITIVE_KEY =
-  /(pass(word|phrase)?|secret|private.?key|mnemonic|token|authorization|cookie|totp|descriptor|signature|credential|(^|_)(uri|url|dsn)$|(uri|url|dsn)$)/i;
+  /(pass(word|phrase)?|secret|private.?key|mnemonic|token|authorization|cookie|totp|descriptor|embedding|template|samples|challenge|signature|credential|(^|_)(uri|url|dsn)$|(uri|url|dsn)$)/i;
 
 // user:password@ inside any URL-looking string.
 const URL_CREDENTIALS = /([a-z][a-z0-9+.-]*:\/\/)([^\s/@:]+):([^\s/@]+)@/gi;

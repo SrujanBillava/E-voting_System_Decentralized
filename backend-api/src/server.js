@@ -84,7 +84,8 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
     const ownerQueue = createOwnerQueue();
     const voterService = createVoterService({ Voter, chain, audit, FaceTemplate, FaceChallenge });
     const configService = createBallotConfigService({ chain, audit, ownerQueue });
-    const electionService = createElectionService({ chain, healthService, auth: authService, audit, ownerQueue, voterStats: () => voterService.stats() });
+    const late = {}; // the face service needs the voter session service, which is created below
+    const electionService = createElectionService({ chain, healthService, auth: authService, audit, ownerQueue, voterStats: () => voterService.stats(), faceReadiness: () => late.faceService.templateReadiness() });
     const voterWiring = (a) => {
       const authService = createVoterAuthService({ Voter, VoterSession, chain, audit: a });
       const relayerQueue = createRelayerQueue();
@@ -96,6 +97,7 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
     // Biometrics: the only way a session becomes FACE_VERIFIED. The admin router uses it for enrolment, the voter router for verification.
     const faceService = createFaceService({ Voter, VoterSession, FaceTemplate, FaceChallenge, authService: voter.authService, chain, audit, templateKey: config.secrets.faceTemplateKey });
     voter.faceService = faceService;
+    late.faceService = faceService;
     const publicService = createPublicService({ chain, audit });
     const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService, faceService }, voter, publicService });
 
