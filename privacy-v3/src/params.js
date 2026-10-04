@@ -18,31 +18,38 @@ export const IDENTITY = Object.freeze([0n, 1n]);
 
 const asciiToBigInt = (text) => BigInt("0x" + Buffer.from(text, "ascii").toString("hex"));
 
-/** Domain tags. DOMAIN_BALLOT is also a constant inside circuits/ballot_validity.circom (test/fast.params.test.mjs keeps them equal). */
-export const DOMAIN_BALLOT = asciiToBigInt("VOTECHAIN-V3-BALLOT-1");
+/**
+ * Domain tag of the ballot hash: a bytes32 constant, keccak256("VOTECHAIN-V3-BALLOT-1"). PROTOTYPE VALUE: the real tag is fixed when the V3 contract is written.
+ * (The Semaphore scope below still uses its own Poseidon-based tag; see README, "Known differences from the frozen architecture".)
+ */
+export const BALLOT_TAG = keccakOfText("VOTECHAIN-V3-BALLOT-1");
 export const DOMAIN_SCOPE = asciiToBigInt("VOTECHAIN-V3-SCOPE-1");
 
-/** bytes32 -> BN254 field element by dropping the lowest 8 bits (the reduction Semaphore uses for keccak digests): injective on the top 248 bits. */
+/** The Semaphore tree depth every proof is generated and verified at (frozen architecture). Smaller depths are only used by fast tests. */
+export const SEMAPHORE_DEPTH = 20;
+
+/** bytes32 -> BN254 field element by dropping the lowest 8 bits (the reduction Semaphore uses for keccak digests): injective on the top 248 bits. Used by the scope only. */
 export const bytes32ToField = (hex) => BigInt(hex) >> 8n;
 
-/** V2 convention: constituencyId = keccak256(utf8(code)). */
+/** V2 convention: constituencyId = keccak256(utf8(code)), a bytes32. */
 export const constituencyIdOf = (code) => keccakOfText(code);
+
+/** The same bytes32 as a uint256 value (what the ballot hash encodes). */
+export const constituencyIdValue = (code) => BigInt(constituencyIdOf(code));
 
 /**
  * FIXED TEST CONSTANTS. The values mirror the frozen V2 local demo deployment but nothing is read from V2 and nothing here is a secret.
  * chainId / contractAddress / electionId are the "election context" that every ballot hash and scope is bound to.
+ * electionId is the FULL bytes32 (as a uint256 value), exactly as the contract holds it.
  */
 export const TEST_CONTEXT = Object.freeze({
   chainId: 31337n,
   contractAddress: 0x5fbdb2315678afecb367f032d93f642f64180aa3n,
-  electionId: bytes32ToField("0x5dab7172a78a7f3f80152b59447177418d65a32d2be42f9832cc46ca76e2ef40"),
+  electionId: BigInt("0x5dab7172a78a7f3f80152b59447177418d65a32d2be42f9832cc46ca76e2ef40"),
 });
-
-/** Constituency id as the circuit sees it (a field element). */
-export const constituencyField = (code) => bytes32ToField(constituencyIdOf(code));
 
 /**
  * The Semaphore scope of an election: ONE scope for the whole election (not per constituency), so one identity can produce
  * exactly one nullifier per election. Semaphore itself hashes the scope again (keccak >> 8) before it enters its circuit.
  */
-export const electionScope = (ctx) => poseidon4([DOMAIN_SCOPE, ctx.chainId, ctx.contractAddress, ctx.electionId]);
+export const electionScope = (ctx) => poseidon4([DOMAIN_SCOPE, ctx.chainId, ctx.contractAddress, ctx.electionId >> 8n]);

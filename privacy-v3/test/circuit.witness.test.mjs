@@ -5,11 +5,11 @@ import fs from "node:fs";
 import { after, describe, it } from "node:test";
 import * as snarkjs from "snarkjs";
 import { validityArtifacts } from "../src/artifacts.js";
-import { ballotHash, encryptVector, oneHot, validityPublicSignals } from "../src/ballot.js";
+import { oneHot, validityPublicSignals } from "../src/ballot.js";
 import { add, encrypt, generateTestKeyPair, randomScalar } from "../src/elgamal.js";
 import { FIELD_PRIME, G } from "../src/params.js";
 import { calculateWitness, shutdownProver } from "../src/validity.js";
-import { BLR, SKIP_NO_ARTIFACTS, ctx, tryWitness, vec, witnessInput } from "./helpers.mjs";
+import { SKIP_NO_ARTIFACTS, tryWitness, vec, witnessInput } from "./helpers.mjs";
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} };
 const { publicKey: H } = generateTestKeyPair();
@@ -26,14 +26,16 @@ describe("ballot validity circuit: honest witnesses", { skip: SKIP_NO_ARTIFACTS 
     }
   }
 
-  it("the circuit's public signals equal the JS statement (ballot hash, context, key, ciphertexts), and the R1CS accepts the witness", async () => {
+  it("the circuit's 68 public signals equal the JS statement [nullifier, kc, H.x, H.y, 64 coordinates], there is no public output, and the R1CS accepts the witness", async () => {
     const kc = 16;
-    const { input, ciphertexts, hash } = witnessInput({ H, kc, m: oneHot(9, kc), nullifier: 123456789n });
+    const { input, ciphertexts } = witnessInput({ H, kc, m: oneHot(9, kc), nullifier: 123456789n });
     const wtns = await calculateWitness(input);
     const w = await snarkjs.wtns.exportJson(wtns);
-    const expected = validityPublicSignals({ ctx, constituencyId: BLR, kc, H, nullifier: 123456789n, ciphertexts, hash });
+    const expected = validityPublicSignals({ kc, H, nullifier: 123456789n, ciphertexts });
+    assert.equal(expected.length, 68, "4 header signals + 16 slots x 4 coordinates");
     assert.deepEqual(w.slice(1, 1 + expected.length).map(String), expected);
-    assert.equal(expected.length, 73, "1 output + 72 public inputs");
+    assert.equal(expected[0], "123456789", "nullifier first");
+    assert.equal(expected[1], "16", "then kc");
     assert.equal(await snarkjs.wtns.check(validityArtifacts.r1cs, wtns, quiet), true);
   });
 
@@ -89,7 +91,7 @@ describe("ballot validity circuit: kc (candidate count) range", { skip: SKIP_NO_
   it("a ballot proven for one kc does not satisfy the statement of another: claiming kc=4 for a kc=3 ballot fails the padding rule", async () => {
     const res = await tryWitness(witnessInput({ H, kc: 3, m: vec([1]), tweak: (i) => (i.kc = "4") }).input);
     assert.equal(res.ok, false, "slot 3 is now an active slot whose ciphertext must be a real encryption, but it is the canonical identity");
-    assert.match(res.rule, /C1x\[j\] === e1x\[j\]|C1y\[j\] === e1y\[j\]|C2x\[j\] === e2x\[j\]|C2y\[j\] === e2y\[j\]/);
+    assert.match(res.rule, /C\[j\]\[[0-3]\] === e[12][xy]\[j\]/);
   });
   it("claiming a smaller kc than the ballot uses (kc=2 for a vote in slot 2) puts the vote in a padded slot", async () => {
     const res = await tryWitness(witnessInput({ H, kc: 3, m: vec([2]), tweak: (i) => (i.kc = "2") }).input);
@@ -99,11 +101,11 @@ describe("ballot validity circuit: kc (candidate count) range", { skip: SKIP_NO_
 });
 
 describe("ballot validity circuit: ciphertext and key checks", { skip: SKIP_NO_ARTIFACTS }, () => {
-  const ciphertextRule = /C1x\[j\] === e1x\[j\]|C1y\[j\] === e1y\[j\]|C2x\[j\] === e2x\[j\]|C2y\[j\] === e2y\[j\]/;
+  const ciphertextRule = /C\[j\]\[[0-3]\] === e[12][xy]\[j\]/;
 
-  for (const [field, slot] of [["C1x", 0], ["C1y", 1], ["C2x", 0], ["C2y", 2]]) {
-    it(`a modified public ciphertext coordinate (${field}[${slot}]) is refused`, async () => {
-      const res = await tryWitness(witnessInput({ H, kc: 3, m: vec([1]), tweak: (i) => (i[field][slot] = (BigInt(i[field][slot]) + 1n).toString()) }).input);
+  for (const [name, slot, k] of [["C1.x", 0, 0], ["C1.y", 1, 1], ["C2.x", 0, 2], ["C2.y", 2, 3]]) {
+    it(`a modified public ciphertext coordinate (slot ${slot} ${name}) is refused`, async () => {
+      const res = await tryWitness(witnessInput({ H, kc: 3, m: vec([1]), tweak: (i) => (i.C[slot][k] = (BigInt(i.C[slot][k]) + 1n).toString()) }).input);
       assert.equal(res.ok, false);
       assert.match(res.rule, ciphertextRule);
     });
@@ -115,7 +117,7 @@ describe("ballot validity circuit: ciphertext and key checks", { skip: SKIP_NO_A
         H, kc: 3, m: vec([1]),
         tweak: (i) => {
           const other = encrypt(H, 0, randomScalar()); // a perfectly valid ciphertext, but not of the secret m
-          i.C1x[1] = other.c1[0].toString(); i.C1y[1] = other.c1[1].toString(); i.C2x[1] = other.c2[0].toString(); i.C2y[1] = other.c2[1].toString();
+          i.C[1] = [other.c1[0].toString(), other.c1[1].toString(), other.c2[0].toString(), other.c2[1].toString()];
         },
       }).input,
     );
@@ -126,7 +128,7 @@ describe("ballot validity circuit: ciphertext and key checks", { skip: SKIP_NO_A
   it("a ballot encrypted under H does not satisfy the statement for a DIFFERENT election key H' (wrong encryption public key)", async () => {
     const res = await tryWitness(witnessInput({ H, kc: 3, m: vec([1]), tweak: (i) => (i.H = [H2[0].toString(), H2[1].toString()]) }).input);
     assert.equal(res.ok, false);
-    assert.match(res.rule, /C2x\[j\] === e2x\[j\]|C2y\[j\] === e2y\[j\]/);
+    assert.match(res.rule, /C\[j\]\[[23]\] === e2[xy]\[j\]/);
   });
 
   it("padded slots must be exactly the canonical identity pair: a real-looking encryption of 0 in a padded slot is refused", async () => {
@@ -135,7 +137,7 @@ describe("ballot validity circuit: ciphertext and key checks", { skip: SKIP_NO_A
         H, kc: 3, m: vec([1]),
         tweak: (i) => {
           const z = encrypt(H, 0, randomScalar());
-          i.C1x[5] = z.c1[0].toString(); i.C1y[5] = z.c1[1].toString(); i.C2x[5] = z.c2[0].toString(); i.C2y[5] = z.c2[1].toString();
+          i.C[5] = [z.c1[0].toString(), z.c1[1].toString(), z.c2[0].toString(), z.c2[1].toString()];
         },
       }).input,
     );
@@ -148,8 +150,8 @@ describe("ballot validity circuit: ciphertext and key checks", { skip: SKIP_NO_A
       witnessInput({
         H, kc: 3, m: vec([1]),
         tweak: (i) => {
-          const c2 = add([BigInt(i.C2x[1]), BigInt(i.C2y[1])], G);
-          i.C2x[1] = c2[0].toString(); i.C2y[1] = c2[1].toString();
+          const c2 = add([BigInt(i.C[1][2]), BigInt(i.C[1][3])], G);
+          i.C[1][2] = c2[0].toString(); i.C[1][3] = c2[1].toString();
         },
       }).input,
     );
@@ -203,10 +205,7 @@ describe("ballot validity circuit: the CONSTRAINT SYSTEM (not just the witness c
     assert.equal(await check(tampered({ "m[1]": 0n })), false, "zero-hot");
     assert.equal(await check(tampered({ "m[1]": 5n })), false, "value 5");
     assert.equal(await check(tampered({ "m[3]": 1n, "m[1]": 0n })), false, "vote moved into a padded slot");
-    assert.equal(await check(tampered({ "C2x[1]": 12345n })), false, "modified ciphertext");
+    assert.equal(await check(tampered({ "C[1][2]": 12345n })), false, "modified ciphertext");
     assert.equal(await check(tampered({ "nullifier": 5n })), false, "the nullifier is CONSTRAINED: changing it alone breaks the R1CS, which is what ties a proof to its nullifier");
   });
 });
-
-// Keep the imports used for documentation of the statement being tested
-void ballotHash; void encryptVector;

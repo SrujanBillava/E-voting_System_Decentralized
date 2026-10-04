@@ -5,7 +5,7 @@ import { after, before, describe, it } from "node:test";
 import { BallotBox } from "../src/ballotbox.js";
 import { ballotHash, padCiphertexts, validityCircuitInput, validityPublicSignals } from "../src/ballot.js";
 import { add, decryptToPoint, generateTestKeyPair, makeDiscreteLog } from "../src/elgamal.js";
-import { G, TEST_CONTEXT, constituencyField, electionScope } from "../src/params.js";
+import { G, SEMAPHORE_DEPTH, TEST_CONTEXT, constituencyIdValue, electionScope } from "../src/params.js";
 import { makeGroup, proveMembership, verifyMembership } from "../src/semaphore.js";
 import { fakeVoter } from "../testing/fake-voters.js";
 import { castBallot, prepareBallot, wireCiphertexts } from "../src/voter.js";
@@ -37,7 +37,7 @@ describe("Privacy V3 core: anonymous encrypted verified ballots", { skip: SKIP_N
   };
   const statementOf = (b, over = {}) => {
     const i = b.internals;
-    return validityPublicSignals({ ctx: over.ctx ?? ctx, constituencyId: over.constituencyId ?? i.constituencyId, kc: over.kc ?? i.kc, H: over.H ?? i.H, nullifier: over.nullifier ?? i.nullifier, ciphertexts: over.ciphertexts ?? i.ciphertexts, hash: over.hash ?? i.hash });
+    return validityPublicSignals({ kc: over.kc ?? i.kc, H: over.H ?? i.H, nullifier: over.nullifier ?? i.nullifier, ciphertexts: over.ciphertexts ?? i.ciphertexts });
   };
 
   before(() => {
@@ -57,11 +57,13 @@ describe("Privacy V3 core: anonymous encrypted verified ballots", { skip: SKIP_N
       assert.equal(await verifyMembership(semaphore), true, "Semaphore proof");
       assert.equal(semaphore.merkleTreeRoot, groups[BLR].root.toString(), "proves membership of THIS constituency's group");
       assert.equal(semaphore.scope, electionScope(ctx).toString(), "election-wide scope");
-      assert.equal(semaphore.message, alice.internals.hash.toString(), "Semaphore message == hash of the exact ciphertexts + context");
+      assert.equal(semaphore.merkleTreeDepth, SEMAPHORE_DEPTH, "generated at the declared depth 20 (the group itself has 5 members)");
+      assert.equal(semaphore.message, alice.internals.hash.toString(), "Semaphore message == keccak ballotHash of the exact ciphertexts + context");
+      assert.equal(alice.internals.hash, ballotHash(ctx, constituencyIdValue(BLR), alice.internals.ciphertexts), "recomputed independently from the public data");
       const statement = statementOf(alice);
+      assert.equal(statement.length, 68, "nullifier, kc, H.x, H.y and 64 coordinates");
       assert.equal(await verifyValidity(validity.proof, statement), true, "validity proof");
-      assert.equal(statement[8], semaphore.nullifier, "the validity proof is bound to the SAME nullifier as the Semaphore proof");
-      assert.equal(statement[0], semaphore.message, "validity proof's ballotHash output == Semaphore message");
+      assert.equal(statement[0], semaphore.nullifier, "the validity proof is bound to the SAME nullifier as the Semaphore proof");
     });
 
     it("the submission reveals neither the identity, the secret, the randomness nor the plaintext vote", () => {
@@ -136,10 +138,63 @@ describe("Privacy V3 core: anonymous encrypted verified ballots", { skip: SKIP_N
       const relabelled = wire(chennai.submission);
       relabelled.constituency = BLR; // same kc=3, but a different group and a different constituency id inside the ballot hash
       rejected(await box.submit(relabelled), "NOT_A_MEMBER");
-      const other = new BallotBox({ ctx: { ...ctx, electionId: ctx.electionId + 1n }, publicKey: H, constituencies: { [CHE]: { kc: 3, group: groups[CHE] } } });
+      const other = new BallotBox({ ctx: { ...ctx, electionId: ctx.electionId ^ (1n << 100n) }, publicKey: H, constituencies: { [CHE]: { kc: 3, group: groups[CHE] } } });
       rejected(await other.submit(chennai.submission), "WRONG_SCOPE"); // a ballot of another election (same groups) is not accepted either
       const otherChain = new BallotBox({ ctx: { ...ctx, chainId: 1n }, publicKey: H, constituencies: { [CHE]: { kc: 3, group: groups[CHE] } } });
       rejected(await otherChain.submit(chennai.submission), "WRONG_SCOPE");
+    });
+  });
+
+  describe("the context is bound through the keccak message (it is not a circuit input any more)", () => {
+    it("a Semaphore proof signed over the hash of another chain / contract / election / constituency is rejected even with the right scope and group; the right hash is accepted", async () => {
+      const voter = voters[CHE][4];
+      const ballot = prepareBallot({ identity: voter, ctx, constituency: CHE, kc: 3, choice: 0, H });
+      const validity = await proveValidity(validityCircuitInput({ kc: 3, H, nullifier: ballot.nullifier, ciphertexts: ballot.ciphertexts, m: ballot.m, r: ballot.r }));
+      const submissionFor = async (hash) =>
+        wire({ constituency: CHE, ciphertexts: wireCiphertexts(ballot.ciphertexts, 3), semaphore: await proveMembership({ identity: voter, group: groups[CHE], message: hash, scope: ballot.scope }), validity: { proof: validity.proof } });
+      const variants = {
+        "other chain": ballotHash({ ...ctx, chainId: 1n }, ballot.constituencyId, ballot.ciphertexts),
+        "other contract": ballotHash({ ...ctx, contractAddress: ctx.contractAddress + 1n }, ballot.constituencyId, ballot.ciphertexts),
+        "other election (only the lowest bit differs)": ballotHash({ ...ctx, electionId: ctx.electionId ^ 1n }, ballot.constituencyId, ballot.ciphertexts),
+        "other constituency": ballotHash(ctx, constituencyIdValue(BLR), ballot.ciphertexts),
+      };
+      const fresh = new BallotBox({ ctx, publicKey: H, constituencies: { [CHE]: { kc: 3, group: groups[CHE] } } });
+      for (const [name, hash] of Object.entries(variants)) {
+        const res = await fresh.submit(await submissionFor(hash));
+        assert.equal(res.accepted, false, name);
+        assert.equal(res.reason, "BALLOT_NOT_BOUND", name);
+      }
+      assert.equal(fresh.ledger.length, 0);
+      assert.equal((await fresh.submit(await submissionFor(ballot.hash))).accepted, true, "control: the correct keccak ballot hash is accepted");
+    });
+
+    it("a ballot relabelled to another constituency that has the SAME group fails only because the constituency id is inside the hash", async () => {
+      const aliasBox = new BallotBox({ ctx, publicKey: H, constituencies: { [CHE]: { kc: 3, group: groups[CHE] }, "XX-ALIAS": { kc: 3, group: groups[CHE] } } });
+      const b = await honest(CHE, 4, 1);
+      const relabelled = wire(b.submission);
+      relabelled.constituency = "XX-ALIAS";
+      rejected(await aliasBox.submit(relabelled), "BALLOT_NOT_BOUND");
+      assert.equal((await aliasBox.submit(b.submission)).accepted, true, "control: under its own constituency it is accepted");
+    });
+  });
+
+  describe("Semaphore depth: every proof must use the declared depth", () => {
+    it("a depth-3 proof is accepted by a box declared at depth 3, refused by the depth-20 box, and a depth-20 proof is refused by the depth-3 box", async () => {
+      const small = await castBallot({ identity: voters[CHE][4], group: groups[CHE], ctx, constituency: CHE, kc: 3, choice: 2, H, depth: 3 });
+      const smallSubmission = wire(small.submission);
+      assert.equal(smallSubmission.semaphore.merkleTreeDepth, 3);
+      const box3 = new BallotBox({ ctx, publicKey: H, constituencies: { [CHE]: { kc: 3, group: groups[CHE] } }, semaphoreDepth: 3 });
+      const before = state();
+      rejected(await box.submit(smallSubmission), "WRONG_DEPTH");
+      assert.deepEqual(state(), before);
+      assert.equal((await box3.submit(smallSubmission)).accepted, true);
+      const big = await honest(CHE, 4, 2);
+      assert.equal(big.submission.semaphore.merkleTreeDepth, SEMAPHORE_DEPTH);
+      rejected(await box3.submit(big.submission), "WRONG_DEPTH");
+    });
+
+    it("a ballot box refuses a group that needs more than the declared depth", () => {
+      assert.throws(() => new BallotBox({ ctx, publicKey: H, constituencies: { [CHE]: { kc: 3, group: groups[CHE] } }, semaphoreDepth: 2 }), /exceeds the declared depth/);
     });
   });
 
@@ -186,7 +241,7 @@ describe("Privacy V3 core: anonymous encrypted verified ballots", { skip: SKIP_N
     for (const [name, m] of invalid) {
       it(`${name}: the prover cannot produce a validity proof`, async () => {
         const forged = prepareBallot({ identity: dave, ctx, constituency: CHE, kc: 3, H, m });
-        await assert.rejects(proveValidity(validityCircuitInput({ ctx, constituencyId: forged.constituencyId, kc: 3, H, nullifier: forged.nullifier, ciphertexts: forged.ciphertexts, m: forged.m, r: forged.r })), /Assert Failed/);
+        await assert.rejects(proveValidity(validityCircuitInput({ kc: 3, H, nullifier: forged.nullifier, ciphertexts: forged.ciphertexts, m: forged.m, r: forged.r })), /Assert Failed/);
       });
 
       it(`${name}: Dave's valid Semaphore proof + the validity proof of his OTHER (valid) ballot is rejected`, async () => {
@@ -234,12 +289,12 @@ describe("Privacy V3 core: anonymous encrypted verified ballots", { skip: SKIP_N
       const c2 = add([BigInt(mod.ciphertexts[0].c2[0]), BigInt(mod.ciphertexts[0].c2[1])], G);
       mod.ciphertexts[0].c2 = [c2[0].toString(), c2[1].toString()];
       const real = mod.ciphertexts.map((c) => ({ c1: c.c1.map(BigInt), c2: c.c2.map(BigInt) }));
-      const hash = ballotHash(ctx, constituencyField(CHE), padCiphertexts(real));
+      const hash = ballotHash(ctx, constituencyIdValue(CHE), padCiphertexts(real));
       mod.semaphore = await proveMembership({ identity: voters[CHE][1], group: groups[CHE], message: hash, scope: electionScope(ctx) });
       rejected(await box.submit(mod), "BAD_VALIDITY_PROOF");
     });
 
-    it("proof-level: every change to the public statement makes the validity proof fail (wrong key, wrong kc, changed ciphertext, changed nullifier, other context)", async () => {
+    it("proof-level: every change to the public statement makes the validity proof fail (wrong key, wrong kc, changed ciphertext, changed nullifier)", async () => {
       const proof = eve.submission.validity.proof;
       assert.equal(await verifyValidity(proof, statementOf(eve)), true, "control: the real statement verifies");
       const i = eve.internals;
@@ -254,25 +309,21 @@ describe("Privacy V3 core: anonymous encrypted verified ballots", { skip: SKIP_N
         "kc 3 -> 2": statementOf(eve, { kc: 2 }),
         "kc 3 -> 16": statementOf(eve, { kc: 16 }),
         "changed nullifier": statementOf(eve, { nullifier: i.nullifier + 1n }),
-        "other chain": statementOf(eve, { ctx: { ...ctx, chainId: 1n } }),
-        "other contract": statementOf(eve, { ctx: { ...ctx, contractAddress: ctx.contractAddress + 1n } }),
-        "other election": statementOf(eve, { ctx: { ...ctx, electionId: ctx.electionId + 1n } }),
-        "other constituency": statementOf(eve, { constituencyId: constituencyField(BLR) }),
-        "ballotHash output changed": bump(0),
-        "C1x[0] changed": bump(9),
-        "C1y[1] changed": bump(25 + 1),
-        "C2x[2] changed": bump(41 + 2),
-        "C2y[0] changed": bump(57),
-        "padded slot 3 C1x changed": bump(9 + 3),
-        "padded slot 15 C2y changed": bump(57 + 15),
+        "nullifier + 1 (signal 0)": bump(0),
+        "C1.x slot 0 changed": bump(4),
+        "C1.y slot 1 changed": bump(4 + 4 + 1),
+        "C2.x slot 2 changed": bump(4 + 8 + 2),
+        "C2.y slot 0 changed": bump(4 + 3),
+        "padded slot 3 C1.x changed": bump(4 + 12),
+        "padded slot 15 C2.y changed": bump(4 + 60 + 3),
       };
       for (const [name, statement] of Object.entries(mutations)) assert.equal(await verifyValidity(proof, statement), false, name);
     });
 
-    it("EXHAUSTIVE: changing any ONE of the 73 public signals invalidates the proof, so no public input is left unconstrained", async () => {
+    it("EXHAUSTIVE: changing any ONE of the 68 public signals invalidates the proof, so no public input is left unconstrained", async () => {
       const proof = eve.submission.validity.proof;
       const base = statementOf(eve);
-      assert.equal(base.length, 73, "1 output (ballotHash) + 72 public inputs");
+      assert.equal(base.length, 68, "[nullifier, kc, H.x, H.y, 64 coordinates]; the circuit has no public output");
       for (let i = 0; i < base.length; i++) {
         const plusOne = [...base];
         plusOne[i] = (BigInt(base[i]) + 1n).toString();
@@ -403,7 +454,7 @@ describe("Privacy V3 core: anonymous encrypted verified ballots", { skip: SKIP_N
         assert.equal(res.accepted, false, name);
         reasons[name] = res.reason;
         const allowed = /^validity/.test(name) ? ["MALFORMED", "BAD_VALIDITY_PROOF"]
-          : /^semaphore/.test(name) ? ["MALFORMED", "BAD_MEMBERSHIP_PROOF", "NOT_A_MEMBER"]
+          : /^semaphore/.test(name) ? ["MALFORMED", "BAD_MEMBERSHIP_PROOF", "NOT_A_MEMBER", "WRONG_DEPTH"]
           : /^ciphertext/.test(name) ? ["MALFORMED", "WRONG_CANDIDATE_COUNT"]
           : ["MALFORMED", "UNKNOWN_CONSTITUENCY"];
         assert.ok(allowed.includes(res.reason), `${name}: rejected, but for an unexpected reason ${res.reason}`);

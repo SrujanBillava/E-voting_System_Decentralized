@@ -3,12 +3,12 @@ import path from "node:path";
 import { validityArtifacts, semaphoreArtifacts, ROOT } from "../src/artifacts.js";
 import { ballotHash, encryptVector, validityCircuitInput } from "../src/ballot.js";
 import { calculateWitness } from "../src/validity.js";
-import { TEST_CONTEXT, constituencyField } from "../src/params.js";
+import { TEST_CONTEXT, constituencyIdValue } from "../src/params.js";
 
 export const ctx = TEST_CONTEXT;
-export const BLR = constituencyField("KA-BLR");
+export const BLR = constituencyIdValue("KA-BLR");
 
-export const artifactsPresent = [validityArtifacts.wasm, validityArtifacts.zkey, validityArtifacts.vkey, semaphoreArtifacts(3).wasm, semaphoreArtifacts(3).zkey].every((f) => fs.existsSync(f));
+export const artifactsPresent = [validityArtifacts.wasm, validityArtifacts.zkey, validityArtifacts.vkey, semaphoreArtifacts(3).wasm, semaphoreArtifacts(3).zkey, semaphoreArtifacts(20).wasm, semaphoreArtifacts(20).zkey].every((f) => fs.existsSync(f));
 export const SKIP_NO_ARTIFACTS = artifactsPresent ? false : "build artifacts missing: run `npm run build:circuit`";
 
 const circuitSource = fs.readFileSync(path.join(ROOT, "circuits", "ballot_validity.circom"), "utf8").split("\n");
@@ -16,7 +16,7 @@ const circuitSource = fs.readFileSync(path.join(ROOT, "circuits", "ballot_validi
 /** A circuit input for a (possibly MALICIOUS) vector m: slots j < kc get real encryptions of whatever m[j] is. */
 export function witnessInput({ H, kc, m, nullifier = 7n, constituencyId = BLR, tweak }) {
   const { ciphertexts, r } = encryptVector({ H, kc, m });
-  const input = validityCircuitInput({ ctx, constituencyId, kc, H, nullifier, ciphertexts, m, r });
+  const input = validityCircuitInput({ kc, H, nullifier, ciphertexts, m, r });
   tweak?.(input, { ciphertexts, r });
   return { input, ciphertexts, r, hash: ballotHash(ctx, constituencyId, ciphertexts) };
 }

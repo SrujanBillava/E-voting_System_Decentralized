@@ -22,9 +22,9 @@ if (process.argv[2] === "--child") {
   const { fakeVoter } = await import("../testing/fake-voters.js");
   const { prepareBallot, wireCiphertexts } = await import("../src/voter.js");
   const { proveValidity, verifyValidity, shutdownProver } = await import("../src/validity.js");
-  const { validityCircuitInput, validityPublicSignals } = await import("../src/ballot.js");
+  const { validityCircuitInput } = await import("../src/ballot.js");
   const { BallotBox } = await import("../src/ballotbox.js");
-  const { TEST_CONTEXT } = await import("../src/params.js");
+  const { TEST_CONTEXT, SEMAPHORE_DEPTH } = await import("../src/params.js");
   const ctx = TEST_CONTEXT;
 
   const { publicKey: H } = generateTestKeyPair();
@@ -35,7 +35,7 @@ if (process.argv[2] === "--child") {
   for (let it = 0; it <= warm; it++) {
     const identity = voters[it % voters.length];
     const b = prepareBallot({ identity, ctx, constituency: "KA-BLR", kc, choice: it % kc, H });
-    const input = validityCircuitInput({ ctx, constituencyId: b.constituencyId, kc, H, nullifier: b.nullifier, ciphertexts: b.ciphertexts, m: b.m, r: b.r });
+    const input = validityCircuitInput({ kc, H, nullifier: b.nullifier, ciphertexts: b.ciphertexts, m: b.m, r: b.r });
     const validity = await proveValidity(input);
     let t = performance.now();
     const ok = await verifyValidity(validity.proof, validity.publicSignals);
@@ -51,8 +51,8 @@ if (process.argv[2] === "--child") {
     let semProveSingleMs = null;
     if (process.env.V3_SINGLE_THREAD) {
       const mp = group.generateMerkleProof(group.indexOf(identity.commitment));
-      const a = semaphoreArtifacts(group.depth);
-      const siblings = [...mp.siblings, ...Array(group.depth - mp.siblings.length).fill(0n)];
+      const a = semaphoreArtifacts(SEMAPHORE_DEPTH);
+      const siblings = [...mp.siblings, ...Array(SEMAPHORE_DEPTH - mp.siblings.length).fill(0n)];
       t = performance.now();
       await snarkjs.groth16.fullProve({ secret: identity.secretScalar, merkleProofLength: mp.siblings.length, merkleProofIndex: mp.index, merkleProofSiblings: siblings, scope: semaphoreHash(b.scope), message: semaphoreHash(b.hash) }, a.wasm, a.zkey, undefined, undefined, { singleThread: true });
       semProveSingleMs = performance.now() - t;

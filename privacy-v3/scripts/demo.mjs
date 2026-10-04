@@ -3,11 +3,11 @@
 //                             the proofs are fresh from the operating system's CSPRNG on every run, exactly as in production code.
 import { BallotBox } from "../src/ballotbox.js";
 import { generateTestKeyPair } from "../src/elgamal.js";
-import { TEST_CONTEXT, constituencyField, electionScope } from "../src/params.js";
+import { SEMAPHORE_DEPTH, TEST_CONTEXT, constituencyIdValue, electionScope } from "../src/params.js";
 import { makeGroup, nullifierOf, verifyMembership } from "../src/semaphore.js";
 import { fakeVoter } from "../testing/fake-voters.js";
 import { shutdownProver, verifyValidity } from "../src/validity.js";
-import { validityPublicSignals } from "../src/ballot.js";
+import { ballotHash, validityPublicSignals } from "../src/ballot.js";
 import { castBallot } from "../src/voter.js";
 
 const short = (v, n = 14) => {
@@ -27,13 +27,13 @@ const { secret, publicKey: H } = generateTestKeyPair();
 console.log(`election context   chainId=${ctx.chainId} contract=0x${ctx.contractAddress.toString(16)} electionId=${short(ctx.electionId)}`);
 console.log(`election scope     ${short(electionScope(ctx))}   (ONE scope for the whole election)`);
 console.log(`encryption key H   x=${short(H[0])} y=${short(H[1])}   (the matching secret is a TEST key held in memory; the real system uses threshold decryption)`);
-console.log(`constituency       ${CONSTITUENCY}  id=${short(constituencyField(CONSTITUENCY))}  candidates=${CANDIDATES.join(", ")} (kc=${kc}, circuit K_MAX=16)`);
+console.log(`constituency       ${CONSTITUENCY}  id=${short(constituencyIdValue(CONSTITUENCY))}  candidates=${CANDIDATES.join(", ")} (kc=${kc}, circuit K_MAX=16)`);
 
 hr("1-3. identities, commitments, group (Semaphore V4)");
 const voters = [1, 2, 3, 4, 5].map((n) => fakeVoter(`demo-bengaluru-${n}`));
 voters.forEach((v, i) => console.log(`voter ${i + 1}  commitment=${short(v.commitment)}   (identity secret never leaves the voter)`));
 const group = makeGroup(voters);
-console.log(`group              members=${group.size} depth=${group.depth} root=${short(group.root)}`);
+console.log(`group              members=${group.size} natural depth=${group.depth}; every membership proof is generated at the declared depth ${SEMAPHORE_DEPTH}; root=${short(group.root)}`);
 const box = new BallotBox({ ctx, publicKey: H, constituencies: { [CONSTITUENCY]: { kc, group } } });
 
 const plan = [[0, "A"], [1, "B"], [2, "A"]]; // voter index, PRIVATE choice
@@ -45,17 +45,18 @@ for (const [index, candidate] of plan) {
   const { submission, timings, internals } = await castBallot({ identity: voters[index], group, ctx, constituency: CONSTITUENCY, kc, choice, H });
   console.log(`[voter]  one-hot vector (PRIVATE)  [${internals.m.slice(0, kc).join(",")}] + ${16 - kc} padded zeros`);
   console.log(`[voter]  encrypted ${kc} slots, fresh randomness each; padded slots = canonical identity  (${ms(timings.encryptMs)})`);
-  console.log(`[voter]  ballot hash (Semaphore message) ${short(internals.hash)}`);
+  console.log(`[voter]  keccak ballot hash (Semaphore message) ${short(internals.hash)}`);
   console.log(`[voter]  nullifier ${short(internals.nullifier)}  == poseidon(scope, secret)  (unlinkable to the commitment)`);
   console.log(`[voter]  Semaphore proof ${ms(timings.semaphoreProveMs)}, validity Groth16: witness ${ms(timings.validityWitnessMs)} + prove ${ms(timings.validityProveMs)}`);
 
   const wire = JSON.parse(JSON.stringify(submission));
   console.log(`[server] submission = ${JSON.stringify(wire).length} bytes of JSON: ${kc} ciphertexts + Semaphore proof + validity proof (no identity, no choice)`);
-  const statement = validityPublicSignals({ ctx, constituencyId: internals.constituencyId, kc, H, nullifier: internals.nullifier, ciphertexts: internals.ciphertexts, hash: internals.hash });
+  const statement = validityPublicSignals({ kc, H, nullifier: internals.nullifier, ciphertexts: internals.ciphertexts });
+  const recomputed = ballotHash(ctx, internals.constituencyId, internals.ciphertexts); // what the contract will compute on its own: keccak256(abi.encode(tag, chainId, contract, electionId, constituencyId, coords))
   const t = performance.now();
   const sem = await verifyMembership(wire.semaphore);
   const val = await verifyValidity(wire.validity.proof, statement);
-  console.log(`[server] Semaphore proof valid: ${sem} | validity proof valid: ${val} | same nullifier in both: ${statement[8] === wire.semaphore.nullifier} | Semaphore message == ballotHash: ${statement[0] === wire.semaphore.message}  (${ms(performance.now() - t)})`);
+  console.log(`[server] Semaphore proof valid: ${sem} | validity proof valid: ${val} | same nullifier in both: ${statement[0] === wire.semaphore.nullifier} | Semaphore message == keccak ballotHash: ${recomputed.toString() === wire.semaphore.message}  (${ms(performance.now() - t)})`);
   const res = await box.submit(wire);
   console.log(`[server] ballot box: ${res.accepted ? `ACCEPTED as ballot #${res.ballotIndex}` : `REJECTED ${res.reason}`}`);
 }

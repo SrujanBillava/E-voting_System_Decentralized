@@ -6,24 +6,26 @@ pragma circom 2.1.6;
 //     C1_j = r_j * G            C2_j = m_j * G + r_j * H            (G = Base8, H = election public key)
 // of a bit m_j, with exactly one m_j = 1. Slots j >= kc are "padding" and are the public canonical identity pair ((0,1),(0,1)).
 //
+// FROZEN INTERFACE: 68 public signals, in this order (snarkjs lists public inputs in declaration order; there are no public outputs):
+//     [ nullifier, kc, H.x, H.y, then for slot j = 0..K-1: C1.x, C1.y, C2.x, C2.y ]
+//
 // What the Groth16 proof convinces a verifier of, WITHOUT revealing which slot is 1:
 //   * 1 <= kc <= K                      (kc is a PUBLIC input: the verifier supplies the real candidate count of the constituency)
 //   * every m_j is 0 or 1, m_j = 0 for every padded slot, and the m_j sum to exactly 1
 //   * every public ciphertext is exactly Enc_H(m_j; r_j) for secret m_j, r_j (padded slots are exactly the canonical identity pair)
 //   * H is a point of the curve with x != 0 (full prime-order-subgroup validation of H is the VERIFIER's job at election setup)
 //   * the proof is tied to the public `nullifier` (it is used in a constraint), so a proof cannot be moved to another voter's nullifier
-//   * `ballotHash` = Poseidon chain over (domain tag, chainId, contract, electionId, constituencyId, every ciphertext coordinate).
-//     The voter signs the SAME value as the Semaphore `message`, which binds the anonymous membership proof to this exact ciphertext.
+//
+// What the circuit deliberately does NOT contain: chain id, contract, election id, constituency id or any ballot hash. Those are bound OUTSIDE the
+// circuit: the voter's Semaphore proof signs message = keccak256(abi.encode(tag, chainId, contract, electionId, constituencyId, all 64 ciphertext
+// coordinates)), computed independently by the verifier (later: the smart contract). The Semaphore proof fixes that message, the nullifier and the
+// group; this proof fixes the same nullifier and the same ciphertext coordinates.
 
 include "circomlib/circuits/babyjub.circom";
 include "circomlib/circuits/bitify.circom";
 include "circomlib/circuits/comparators.circom";
 include "circomlib/circuits/escalarmulany.circom";
 include "circomlib/circuits/escalarmulfix.circom";
-include "circomlib/circuits/poseidon.circom";
-
-// "VOTECHAIN-V3-BALLOT-1" as a big-endian integer. Must equal DOMAIN_BALLOT in src/params.js (a test checks it).
-function ballotDomain() { return 0x564f5445434841494e2d56332d42414c4c4f542d31; }
 
 // Number of bits needed to write n (K = 16 -> 5): the width of the kc range checks, so the circuit works for any K, not just 16.
 function bitsFor(n) {
@@ -81,20 +83,11 @@ template ElGamalSlot() {
 }
 
 template BallotValidity(K) {
-    // ---------------------------------------------------------------- public inputs
-    signal input chainId;
-    signal input contractAddress;
-    signal input electionId;
-    signal input constituencyId;
+    // ---------------------------------------------------------------- public inputs (declaration order = public signal order)
+    signal input nullifier;
     signal input kc;
     signal input H[2];
-    signal input nullifier;
-    signal input C1x[K];
-    signal input C1y[K];
-    signal input C2x[K];
-    signal input C2y[K];
-    // ---------------------------------------------------------------- public output
-    signal output ballotHash;
+    signal input C[K][4]; // slot j: [C1.x, C1.y, C2.x, C2.y]
     // ---------------------------------------------------------------- private witness
     signal input m[K];
     signal input r[K];
@@ -156,29 +149,11 @@ template BallotValidity(K) {
         e1y[j] <== 1 + active[j].out * (slot[j].c1[1] - 1);
         e2x[j] <== active[j].out * slot[j].c2[0];
         e2y[j] <== 1 + active[j].out * (slot[j].c2[1] - 1);
-        C1x[j] === e1x[j];
-        C1y[j] === e1y[j];
-        C2x[j] === e2x[j];
-        C2y[j] === e2y[j];
+        C[j][0] === e1x[j];
+        C[j][1] === e1y[j];
+        C[j][2] === e2x[j];
+        C[j][3] === e2y[j];
     }
-
-    // ---- ballot hash = Poseidon chain, one absorb step per slot
-    component h0 = Poseidon(5);
-    h0.inputs[0] <== ballotDomain();
-    h0.inputs[1] <== chainId;
-    h0.inputs[2] <== contractAddress;
-    h0.inputs[3] <== electionId;
-    h0.inputs[4] <== constituencyId;
-    component hs[K];
-    for (var j = 0; j < K; j++) {
-        hs[j] = Poseidon(5);
-        hs[j].inputs[0] <== (j == 0) ? h0.out : hs[j - 1].out;
-        hs[j].inputs[1] <== C1x[j];
-        hs[j].inputs[2] <== C1y[j];
-        hs[j].inputs[3] <== C2x[j];
-        hs[j].inputs[4] <== C2y[j];
-    }
-    ballotHash <== hs[K - 1].out;
 }
 
-component main { public [chainId, contractAddress, electionId, constituencyId, kc, H, nullifier, C1x, C1y, C2x, C2y] } = BallotValidity(16);
+component main { public [nullifier, kc, H, C] } = BallotValidity(16);
