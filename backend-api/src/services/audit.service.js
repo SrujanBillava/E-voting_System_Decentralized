@@ -3,7 +3,7 @@
  * and is logged), and only whitelisted, primitive metadata is stored: never passwords, codes,
  * tokens, secrets or keys.
  */
-const META_KEYS = new Set(["reason", "phase", "failedChecks", "email", "voterDbId", "voterId", "changedFields", "constituencyCode", "candidateId", "name"]);
+const META_KEYS = new Set(["reason", "phase", "failedChecks", "email", "voterDbId", "voterId", "changedFields", "constituencyCode", "candidateId", "name", "attempt", "score", "sampleCount", "liveness"]);
 
 export function createAuditService({ AuditLog, logger, now = Date.now }) {
   const safeMeta = (meta = {}) => {

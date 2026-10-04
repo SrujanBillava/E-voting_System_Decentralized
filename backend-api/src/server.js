@@ -12,6 +12,9 @@ import { AdminSession } from "./models/AdminSession.js";
 import { AuditLog } from "./models/AuditLog.js";
 import { createAdminAuthService } from "./services/adminAuth.service.js";
 import { createAuditService } from "./services/audit.service.js";
+import { FaceChallenge } from "./models/FaceChallenge.js";
+import { FaceTemplate } from "./models/FaceTemplate.js";
+import { createFaceService } from "./services/face.service.js";
 import { Voter } from "./models/Voter.js";
 import { createOwnerQueue } from "./chain/ownerQueue.js";
 import { createBallotConfigService } from "./services/ballotConfig.service.js";
@@ -62,7 +65,7 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
   try {
     await mongo.connect();
     const realDb = mongoose.connection.readyState === 1; // false only when tests substitute a fake Mongo
-    if (realDb) await Promise.all([VoteTicket.init(), VoterSession.init()]); // the unique indexes are load-bearing
+    if (realDb) await Promise.all([VoteTicket.init(), VoterSession.init(), FaceTemplate.init(), FaceChallenge.init()]); // the unique indexes are load-bearing
 
     const healthService = createHealthService({
       runPreflight: ({ deep }) =>
@@ -79,7 +82,7 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
     const audit = createAuditService({ AuditLog, logger });
     const authService = createAdminAuthService({ Admin, AdminSession, audit, secrets: config.secrets });
     const ownerQueue = createOwnerQueue();
-    const voterService = createVoterService({ Voter, chain, audit });
+    const voterService = createVoterService({ Voter, chain, audit, FaceTemplate, FaceChallenge });
     const configService = createBallotConfigService({ chain, audit, ownerQueue });
     const electionService = createElectionService({ chain, healthService, auth: authService, audit, ownerQueue, voterStats: () => voterService.stats() });
     const voterWiring = (a) => {
@@ -90,8 +93,11 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
       return { authService, castService, receiptService, authorizationService: createAuthorizationService({ Voter, VoteTicket, authService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a }), eligibilityService: createEligibilityService({ Voter, authService, chain, nullifierSecret: config.secrets.nullifierSecret, audit: a, receiptService }) };
     };
     const voter = voterWiring(audit);
+    // Biometrics: the only way a session becomes FACE_VERIFIED. The admin router uses it for enrolment, the voter router for verification.
+    const faceService = createFaceService({ Voter, VoterSession, FaceTemplate, FaceChallenge, authService: voter.authService, chain, audit, templateKey: config.secrets.faceTemplateKey });
+    voter.faceService = faceService;
     const publicService = createPublicService({ chain, audit });
-    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService }, voter, publicService });
+    const app = createApp({ config, logger, healthService, admin: { authService, electionService, voterService, configService, faceService }, voter, publicService });
 
     // Recovery sweep: completes votes whose voter can no longer ask (session expired, backend restarted, election closed).
     const sweep = () => voter.castService.recoverPending().catch((err) => logger.warn({ err }, "recovery sweep failed"));

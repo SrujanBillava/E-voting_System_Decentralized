@@ -18,6 +18,8 @@ import { loadEnv } from "../../src/config/env.js";
 import { Admin } from "../../src/models/Admin.js";
 import { AdminSession } from "../../src/models/AdminSession.js";
 import { AuditLog } from "../../src/models/AuditLog.js";
+import { FaceChallenge } from "../../src/models/FaceChallenge.js";
+import { FaceTemplate } from "../../src/models/FaceTemplate.js";
 import { Voter } from "../../src/models/Voter.js";
 import { VoteTicket } from "../../src/models/VoteTicket.js";
 import { VoterSession } from "../../src/models/VoterSession.js";
@@ -41,7 +43,7 @@ async function main() {
   switch (command) {
     case "reset":
       await mongoose.connection.dropDatabase();
-      await Promise.all([Voter.syncIndexes(), VoterSession.syncIndexes(), VoteTicket.syncIndexes(), Admin.syncIndexes(), AdminSession.syncIndexes(), AuditLog.syncIndexes()]);
+      await Promise.all([Voter.syncIndexes(), VoterSession.syncIndexes(), VoteTicket.syncIndexes(), Admin.syncIndexes(), AdminSession.syncIndexes(), AuditLog.syncIndexes(), FaceTemplate.syncIndexes(), FaceChallenge.syncIndexes()]);
       return out({ ok: true });
     case "admin": {
       const service = createAdminAuthService({ Admin, AdminSession, audit: { record: async () => {} }, secrets: config.secrets, bcryptCost: 4 });

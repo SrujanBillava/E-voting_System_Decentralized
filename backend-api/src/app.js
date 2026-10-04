@@ -12,6 +12,7 @@ import { createVoterJourneyRouter } from "./routes/voterJourney.routes.js";
 import { createVoterRouter } from "./routes/voter.routes.js";
 import { createAdminRouter } from "./routes/admin.routes.js";
 import { createApiRouter } from "./routes/index.js";
+import { createFaceAdminRouter, createFaceVoterRouter } from "./routes/face.routes.js";
 import { AppError } from "./utils/errors.js";
 
 /**
@@ -53,6 +54,9 @@ export function createApp({ config, logger, healthService, admin, voter, publicS
   app.use(cookieParser());
 
   app.use("/api/v1", createApiRouter({ healthService }));
+  // Biometrics (AUTHENTICATED -> FACE_VERIFIED, and admin face enrolment). Mounted first so its admin routes authenticate once.
+  if (voter?.faceService) app.use("/api/v1/voter/face", createFaceVoterRouter({ authService: voter.authService, faceService: voter.faceService, config, faceRateLimit: voter.faceRateLimit }));
+  if (admin?.faceService) app.use("/api/v1/admin", createFaceAdminRouter({ authService: admin.authService, faceService: admin.faceService }));
   if (voter) app.use("/api/v1/voter", createVoterRouter({ authService: voter.authService, config, loginRateLimit: voterLoginRateLimit }));
   if (voter?.eligibilityService) app.use("/api/v1/voter", createVoterJourneyRouter({ authService: voter.authService, eligibilityService: voter.eligibilityService, authorizationService: voter.authorizationService, castService: voter.castService, receiptService: voter.receiptService, config }));
   if (publicService) app.use("/api/v1/public", createPublicRouter({ publicService, receiptRateLimit: publicReceiptRateLimit }));
