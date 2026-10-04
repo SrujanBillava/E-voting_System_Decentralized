@@ -9,9 +9,16 @@ export function encryptSecret(key, plaintext, aad) {
   return { ct: ct.toString("base64"), iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), v: 1 };
 }
 
+const IV_BYTES = 12;
+const TAG_BYTES = 16;
+
 export function decryptSecret(key, box, aad) {
-  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(box.iv, "base64"));
+  // Node accepts shortened GCM tags unless told otherwise, and a short tag can be guessed: insist on the full sizes.
+  const iv = typeof box?.iv === "string" ? Buffer.from(box.iv, "base64") : null;
+  const tag = typeof box?.tag === "string" ? Buffer.from(box.tag, "base64") : null;
+  if (typeof box?.ct !== "string" || iv?.length !== IV_BYTES || tag?.length !== TAG_BYTES) throw new Error("encrypted value is malformed");
+  const decipher = createDecipheriv("aes-256-gcm", key, iv, { authTagLength: TAG_BYTES });
   decipher.setAAD(Buffer.from(aad, "utf8"));
-  decipher.setAuthTag(Buffer.from(box.tag, "base64"));
+  decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(Buffer.from(box.ct, "base64")), decipher.final()]).toString("utf8");
 }

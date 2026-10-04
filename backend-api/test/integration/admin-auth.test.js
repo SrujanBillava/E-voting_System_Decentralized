@@ -269,4 +269,64 @@ describe("admin auth (real MongoDB)", { skip: uri ? false : "set MONGODB_TEST_UR
       await assert.rejects(row.save(), /append-only/);
     });
   });
+  describe("step-up TOTP (Open / Close)", () => {
+    const stepUp = (a, totp = a.code()) => w.auth.verifyStepUp({ adminId: a.admin.id, totp, ip: "127.0.0.1", requestId: "r" });
+
+    it("a correct fresh code succeeds; the same code again is a replay and is refused", async () => {
+      const a = await w.createAdmin();
+      await stepUp(a);
+      await assert.rejects(stepUp(a), (err) => err.code === "INVALID_STEP_UP");
+      assert.equal(await AuditLog.countDocuments({ action: "TOTP_REPLAY_REJECTED" }), 1);
+      w.clock.advance(31);
+      await stepUp(a); // a fresh code works again
+    });
+
+    it("bad step-up codes count toward the same lockout as login; a locked admin cannot step up even with a correct code", async () => {
+      const a = await w.createAdmin();
+      for (let i = 0; i < 4; i++) await assert.rejects(stepUp(a, "000000"), (err) => err.code === "INVALID_STEP_UP");
+      assert.equal((await Admin.findOne({})).failedLoginCount, 4);
+      await assert.rejects(stepUp(a, "000000"), (err) => err.code === "INVALID_STEP_UP");
+      assert.ok((await Admin.findOne({})).lockUntil, "the fifth bad code locks the account");
+      w.clock.advance(31);
+      await assert.rejects(stepUp(a), (err) => err.code === "INVALID_STEP_UP", "a correct, fresh code is refused while locked");
+      assert.equal((await w.loginAs(a)).status, 401, "login is locked as well");
+      assert.ok((await AuditLog.countDocuments({ action: "ADMIN_STEP_UP_FAILURE" })) >= 6);
+      w.clock.advance(16 * 60);
+      await stepUp(a); // lock expired
+    });
+
+    it("a success resets the failure counter", async () => {
+      const a = await w.createAdmin();
+      for (let i = 0; i < 3; i++) await assert.rejects(stepUp(a, "000000"));
+      await stepUp(a);
+      assert.equal((await Admin.findOne({})).failedLoginCount, 0);
+    });
+
+    it("a disabled admin cannot step up", async () => {
+      const a = await w.createAdmin();
+      await Admin.updateOne({}, { $set: { status: "disabled" } });
+      await assert.rejects(stepUp(a), (err) => err.code === "INVALID_STEP_UP");
+    });
+
+    const openBody = { confirmation: "OPEN ELECTION", totp: "123456" }; // the stub election service accepts anything that passes validation
+    const closeBody = { confirmation: "CLOSE ELECTION", totp: "123456" };
+
+    it("POST /election/open and /close are rate limited per admin (about 5 per minute) after authentication", async () => {
+      const limited = await adminWorld({ stepUpRateLimit: { windowMs: 60_000, limit: 5 } });
+      const a = await limited.createAdmin();
+      const token = (await limited.loginAs(a)).body.data.accessToken;
+      for (let i = 0; i < 5; i++) assert.equal((await limited.request().post("/api/v1/admin/election/open").set(limited.bearer(token)).send(openBody)).status, 200);
+      const sixth = await limited.request().post("/api/v1/admin/election/close").set(limited.bearer(token)).send(closeBody);
+      assert.equal(sixth.status, 429);
+      assert.equal(sixth.body.error.code, "RATE_LIMITED");
+    });
+
+    it("unauthenticated requests never consume the admin's step-up budget", async () => {
+      const limited = await adminWorld({ stepUpRateLimit: { windowMs: 60_000, limit: 2 } });
+      const a = await limited.createAdmin();
+      const token = (await limited.loginAs(a)).body.data.accessToken;
+      for (let i = 0; i < 10; i++) assert.equal((await limited.request().post("/api/v1/admin/election/open").send(openBody)).status, 401);
+      assert.equal((await limited.request().post("/api/v1/admin/election/open").set(limited.bearer(token)).send(openBody)).status, 200);
+    });
+  });
 });

@@ -98,6 +98,15 @@ describe("admin election control (real chain + real MongoDB)", { skip: uri ? fal
       assert.equal(await phase(), 0);
     });
 
+    it("repeated bad step-up codes lock the admin: even the correct code cannot open the election afterwards", async () => {
+      for (let i = 0; i < 5; i++) assert.equal((await post("open", openBody({ totp: "000000" }))).body.error.code, "INVALID_STEP_UP");
+      const refused = await post("open", openBody());
+      assert.equal(refused.status, 401);
+      assert.equal(refused.body.error.code, "INVALID_STEP_UP");
+      assert.equal(await phase(), 0);
+      assert.ok((await AuditLog.countDocuments({ action: "ADMIN_STEP_UP_FAILURE" })) >= 6);
+    });
+
     it("rejects a replayed TOTP code (the one already used by login)", async () => {
       w.clock.advance(-31); // back inside the login's time step
       const replay = await post("open", openBody());

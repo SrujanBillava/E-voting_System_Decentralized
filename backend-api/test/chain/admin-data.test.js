@@ -125,6 +125,24 @@ describe("admin voter / constituency / candidate management (real chain + Mongo)
       assert.equal((await call("post", "/voters", newVoter({ password: "short" }))).status, 400);
     });
 
+    it("limits the voter password by UTF-8 BYTES (bcrypt's 72-byte input), never silently truncating", async () => {
+      const atLimit = ["a".repeat(72), "é".repeat(36), "€".repeat(24), "😀".repeat(18), "é".repeat(35) + "ab"]; // each is exactly 72 bytes
+      const overLimit = ["a".repeat(73), "é".repeat(37), "€".repeat(25), "😀".repeat(19), "é".repeat(36) + "a"]; // 73-76 bytes, yet some are well under 72 characters
+      for (const [i, password] of atLimit.entries()) {
+        assert.equal(Buffer.byteLength(password), 72);
+        const res = await call("post", "/voters", newVoter({ password, email: `limit${i}@example.org` }));
+        assert.equal(res.status, 201, `${password.slice(0, 6)}… should be accepted`);
+        assert.equal(await bcrypt.compare(password, (await Voter.findOne({ email: `limit${i}@example.org` }).select("+passwordHash")).passwordHash), true);
+      }
+      for (const [i, password] of overLimit.entries()) {
+        assert.ok(Buffer.byteLength(password) > 72);
+        const res = await call("post", "/voters", newVoter({ password, email: `over${i}@example.org` }));
+        assert.equal(res.status, 400, `${Buffer.byteLength(password)} bytes must be refused`);
+        assert.match(res.body.error.message, /password/);
+        assert.equal(await Voter.countDocuments({ email: `over${i}@example.org` }), 0);
+      }
+    });
+
     it("is refused once the election is Open or Closed (live contract phase)", async () => {
       await (await owner().openElection()).wait();
       const open = await call("post", "/voters", newVoter());
@@ -223,6 +241,8 @@ describe("admin voter / constituency / candidate management (real chain + Mongo)
       assert.equal(await bcrypt.compare(VOTER_PW, newHash), false);
       assert.equal(await bcrypt.compare("a brand new password 99", newHash), true);
       assert.equal((await call("post", `/voters/${v.id}/password-reset`, { newPassword: "short" })).status, 400);
+      assert.equal((await call("post", `/voters/${v.id}/password-reset`, { newPassword: "😀".repeat(19) })).status, 400, "76 bytes");
+      assert.equal((await call("post", `/voters/${v.id}/password-reset`, { newPassword: "😀".repeat(18) })).status, 204, "exactly 72 bytes");
       assert.equal((await call("post", `/voters/${v.id}/password-reset`, { newPassword: "a brand new password 99", extra: 1 })).status, 400);
     });
 

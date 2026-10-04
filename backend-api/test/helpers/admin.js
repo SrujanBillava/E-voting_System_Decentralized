@@ -17,7 +17,7 @@ export const PASSWORD = "correct horse battery staple";
 export const sha256 = (t) => createHash("sha256").update(t).digest("hex");
 
 /** Fresh database + fake clock + real auth service. `electionService` is optional (stubbed otherwise). */
-export async function adminWorld({ electionFactory, extras, loginRateLimit = { windowMs: 60_000, limit: 1000 }, env } = {}) {
+export async function adminWorld({ electionFactory, extras, loginRateLimit = { windowMs: 60_000, limit: 1000 }, stepUpRateLimit = { windowMs: 60_000, limit: 1000 }, env } = {}) {
   await mongoose.connection.dropDatabase();
   await Promise.all([Admin.syncIndexes(), AdminSession.syncIndexes(), AuditLog.syncIndexes()]);
 
@@ -35,6 +35,7 @@ export async function adminWorld({ electionFactory, extras, loginRateLimit = { w
     healthService: { getPublicHealth: async () => ({ status: "ok" }) },
     admin: { authService: auth, electionService: election, ...(extras ? extras({ auth, audit, clock, ownerQueue }) : {}) },
     loginRateLimit,
+    stepUpRateLimit,
   });
 
   const code = (secret) => generateSync({ secret, epoch: Math.floor(clock.now() / 1000) });

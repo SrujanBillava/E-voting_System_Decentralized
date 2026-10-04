@@ -12,7 +12,7 @@ const COOKIE_PATH = "/api/v1/admin/auth";
 const Login = z.strictObject({ email: z.string().max(254).email(), password: z.string().min(1).max(256), totp: z.string().regex(/^[0-9]{6}$/) });
 const Open = z.strictObject({ confirmation: z.string().max(40), totp: z.string().regex(/^[0-9]{6}$/) });
 
-export function createAdminRouter({ authService, electionService, voterService, configService, config, loginRateLimit = { windowMs: 60_000, limit: 5 } }) {
+export function createAdminRouter({ authService, electionService, voterService, configService, config, loginRateLimit = { windowMs: 60_000, limit: 5 }, stepUpRateLimit = { windowMs: 60_000, limit: 5 } }) {
   const router = Router();
   const guard = requireAdmin(authService);
   const ctxOf = (req) => ({ adminId: req.admin?.adminId, ip: req.ip, requestId: req.id });
@@ -27,6 +27,15 @@ export function createAdminRouter({ authService, electionService, voterService, 
     ...loginRateLimit,
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (_req, _res, next) => next(new AppError(429, "RATE_LIMITED", "Too many attempts, try again later")),
+  });
+
+  // Open/Close ask for a fresh authenticator code: bound how fast ONE admin can try codes (counted per admin, after authentication).
+  const stepUpLimiter = rateLimit({
+    ...stepUpRateLimit,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => `admin:${req.admin?.adminId ?? "unknown"}`,
     handler: (_req, _res, next) => next(new AppError(429, "RATE_LIMITED", "Too many attempts, try again later")),
   });
 
@@ -54,8 +63,8 @@ export function createAdminRouter({ authService, electionService, voterService, 
   router.get("/auth/me", guard, (req, res) => res.json({ data: { admin: req.admin.admin } }));
 
   router.get("/election", guard, async (_req, res) => res.json({ data: await electionService.getElection() }));
-  router.post("/election/open", guard, async (req, res) => res.json({ data: await electionService.open(parse(Open, req.body), ctxOf(req)) }));
-  router.post("/election/close", guard, async (req, res) => res.json({ data: await electionService.close(parse(Open, req.body), ctxOf(req)) }));
+  router.post("/election/open", guard, stepUpLimiter, async (req, res) => res.json({ data: await electionService.open(parse(Open, req.body), ctxOf(req)) }));
+  router.post("/election/close", guard, stepUpLimiter, async (req, res) => res.json({ data: await electionService.close(parse(Open, req.body), ctxOf(req)) }));
 
   if (voterService && configService) router.use(guard, createAdminDataRouter({ voterService, configService }));
 
