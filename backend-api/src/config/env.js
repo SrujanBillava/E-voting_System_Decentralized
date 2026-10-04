@@ -117,6 +117,12 @@ const nullifierSecret = z
   .refine((v) => (v.length - (v.startsWith("0x") ? 2 : 0)) % 2 === 0, "must have an even number of hex digits")
   .refine((v) => !isLowEntropyHex(v.replace(/^0x/, "")), "has too little entropy (repeating or near-constant)");
 
+// An AES-256 key: exactly 32 random bytes as hex.
+const aes256Key = z
+  .string()
+  .regex(/^(0x)?[0-9a-fA-F]{64}$/, "must be exactly 32 bytes of random hex (generate with: openssl rand -hex 32)")
+  .refine((v) => !isLowEntropyHex(v.replace(/^0x/, "")), "has too little entropy (repeating or near-constant)");
+
 const RAW = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: port.default(5000),
@@ -143,6 +149,9 @@ const RAW = z.object({
     .string()
     .regex(/^(0x)?[0-9a-fA-F]{64}$/, "must be exactly 32 bytes of random hex (generate with: openssl rand -hex 32)")
     .refine((v) => !isLowEntropyHex(v.replace(/^0x/, "")), "has too little entropy (repeating or near-constant)"),
+
+  // Biometrics (see src/biometrics): encrypts every voter's face template at rest. Its own key, shared with nothing.
+  FACE_TEMPLATE_ENCRYPTION_KEY: aes256Key,
 
   CORS_ORIGINS: z.string().optional(),
 });
@@ -236,6 +245,15 @@ export function loadEnv(rawEnv) {
     issues.push({ path: "JWT_ACCESS_SECRET/ADMIN_TOTP_ENCRYPTION_KEY", message: "NULLIFIER_SECRET, JWT_ACCESS_SECRET and ADMIN_TOTP_ENCRYPTION_KEY must be three different secrets" });
   }
 
+  // ---- the face template key must differ from every other secret (and must not be a part of a longer one)
+  const faceKeyHex = hexOf(env.FACE_TEMPLATE_ENCRYPTION_KEY);
+  for (const name of ["OWNER_PRIVATE_KEY", "AUTHORITY_PRIVATE_KEY", "RELAYER_PRIVATE_KEY", "NULLIFIER_SECRET", "JWT_ACCESS_SECRET", "ADMIN_TOTP_ENCRYPTION_KEY"]) {
+    if (hexOf(env[name]).includes(faceKeyHex)) issues.push({ path: "FACE_TEMPLATE_ENCRYPTION_KEY", message: `must not reuse ${name}` });
+  }
+  for (const name of ["MONGODB_URI", "CHAIN_RPC_URL"]) {
+    if (env[name].toLowerCase().includes(faceKeyHex)) issues.push({ path: "FACE_TEMPLATE_ENCRYPTION_KEY", message: `must not appear in ${name}` });
+  }
+
   // ---- production-like environments refuse development material
   if (isProduction) {
     const dev = hardhatDevAccounts();
@@ -248,6 +266,9 @@ export function loadEnv(rawEnv) {
     // A public key used as the nullifier secret would let anyone recompute every voter's nullifier.
     if (dev.some((a) => secretHex.includes(a.key))) {
       issues.push({ path: "NULLIFIER_SECRET", message: "contains a publicly known Hardhat development key and is not allowed in production" });
+    }
+    if (dev.some((a) => a.key === faceKeyHex)) {
+      issues.push({ path: "FACE_TEMPLATE_ENCRYPTION_KEY", message: "is a publicly known Hardhat development key and is not allowed in production" });
     }
     if (env.CHAIN_ID === 31337) issues.push({ path: "CHAIN_ID", message: "31337 is the local Hardhat chain and is not allowed in production" });
     for (const name of ["CHAIN_ID", "VOTING_CONTRACT_ADDRESS", "ELECTION_ID"]) {
@@ -282,6 +303,7 @@ export function loadEnv(rawEnv) {
       nullifierSecret: Buffer.from(secretHex, "hex"),
       jwtAccessSecret: Buffer.from(env.JWT_ACCESS_SECRET.replace(/^0x/, ""), "hex"),
       adminTotpKey: Buffer.from(env.ADMIN_TOTP_ENCRYPTION_KEY.replace(/^0x/, ""), "hex"),
+      faceTemplateKey: Buffer.from(faceKeyHex, "hex"),
       mongodbUri: env.MONGODB_URI,
       chainRpcUrl: env.CHAIN_RPC_URL,
     }),
@@ -308,6 +330,7 @@ export function secretValuesOf(config) {
     "0x" + s.nullifierSecret.toString("hex"),
     s.jwtAccessSecret.toString("hex"),
     s.adminTotpKey.toString("hex"),
+    s.faceTemplateKey.toString("hex"),
     s.mongodbUri,
     s.chainRpcUrl,
   ];

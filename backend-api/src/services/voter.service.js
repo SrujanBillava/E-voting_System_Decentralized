@@ -27,7 +27,11 @@ export const toVoterDto = (v) => ({
 
 const isDuplicate = (err) => err?.code === 11000;
 
-export function createVoterService({ Voter, chain, audit, bcryptCost = 12 }) {
+/**
+ * `FaceTemplate` and `FaceChallenge` are optional: when given, deleting a voter also removes THAT voter's encrypted face template and
+ * THAT voter's face-challenge rows (both are keyed by the voter's database id; nothing belonging to anybody else is touched).
+ */
+export function createVoterService({ Voter, chain, audit, bcryptCost = 12, FaceTemplate, FaceChallenge }) {
   /** Canonicalise the code, derive the id, and prove the constituency exists on-chain. */
   async function requireConstituency(rawCode) {
     const code = canonicalConstituencyCode(rawCode);
@@ -42,6 +46,19 @@ export function createVoterService({ Voter, chain, audit, bcryptCost = 12 }) {
   };
   const rec = (action, ctx, voter, meta = {}) =>
     audit.record({ action, result: "success", adminId: ctx.adminId, requestId: ctx.requestId, ip: ctx.ip, meta: { voterDbId: String(voter._id), voterId: voter.voterId, ...meta } });
+
+  /** Biometric data must not outlive the voter. Scoped strictly to this voter's id and this voter's session ids. */
+  async function removeFaceData(voter, ctx) {
+    if (!FaceTemplate) return;
+    try {
+      await FaceTemplate.deleteOne({ voterId: voter._id });
+      if (FaceChallenge) await FaceChallenge.deleteMany({ voterId: voter._id });
+    } catch {
+      // The voter is already gone and the leftover row is encrypted with a key bound to this voter's id (so it is unusable),
+      // but say so loudly in the audit trail instead of failing a delete that has already happened.
+      await audit.record({ action: "VOTER_FACE_CLEANUP_FAILED", result: "failure", adminId: ctx.adminId, requestId: ctx.requestId, ip: ctx.ip, meta: { voterDbId: String(voter._id), voterId: voter.voterId, reason: "face_cleanup_failed" } });
+    }
+  }
 
   return {
     async create({ name, email, password, constituencyCode }, ctx) {
@@ -107,6 +124,7 @@ export function createVoterService({ Voter, chain, audit, bcryptCost = 12 }) {
       const voter = await find(id);
       await voter.deleteOne();
       await rec("VOTER_DELETED", ctx, voter);
+      await removeFaceData(voter, ctx);
     },
 
     async resetPassword(id, newPassword, ctx) {

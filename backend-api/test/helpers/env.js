@@ -22,6 +22,7 @@ export const TEST_NULLIFIER_SECRET = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b
 
 export const TEST_JWT_SECRET = "3c9a1f5e7b2d48a6c0e1f39b5d7a2c4e8f6b1d3a5c7e9f0b2d4a6c8e1f3b5d70";
 export const TEST_TOTP_KEY = "b7e4a1c9d2f6385e0a4c7b1d9e3f5a2c8d6b0e4f1a3c5d7e9b2f4a6c8d0e1f35";
+export const TEST_FACE_KEY = "5e1c8a3f7b9d2046c8e0a2f4b6d81357e9c1a3b5d7f90246a8c0e2f4b6d8a1c3";
 
 /** A complete, valid raw environment (what process.env would hold). Override or delete keys per test. */
 export function validEnv(overrides = {}) {
@@ -39,6 +40,7 @@ export function validEnv(overrides = {}) {
     NULLIFIER_SECRET: TEST_NULLIFIER_SECRET,
     JWT_ACCESS_SECRET: TEST_JWT_SECRET,
     ADMIN_TOTP_ENCRYPTION_KEY: TEST_TOTP_KEY,
+    FACE_TEMPLATE_ENCRYPTION_KEY: TEST_FACE_KEY,
     ...overrides,
   };
   for (const [k, v] of Object.entries(env)) if (v === undefined) delete env[k];
