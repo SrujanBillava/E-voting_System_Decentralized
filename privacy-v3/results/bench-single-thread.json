@@ -1,0 +1,193 @@
+{
+  "singleThread": true,
+  "measuredAt": "2026-10-04T19:03:02.082Z",
+  "machine": {
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13650HX",
+    "logicalCores": 20,
+    "ramGiB": 14.8,
+    "os": "Linux 7.0.0-38-generic",
+    "node": "v24.20.0"
+  },
+  "setup": {
+    "warmIterations": 3,
+    "note": "validity proving = snarkjs 0.7.5 groth16.prove on the zkey (multi-threaded WASM); witness = circom WASM witness calculator; all times in ms; browser/WASM-in-page timing not measured here"
+  },
+  "circuit": {
+    "file": "circuits/ballot_validity.circom",
+    "constraints": 54590,
+    "wires": 54563,
+    "publicInputs": 72,
+    "publicOutputs": 1,
+    "privateInputs": 32
+  },
+  "sizesMiB": {
+    "r1cs": "15.13",
+    "wasm": "2.33",
+    "zkey": "32.31",
+    "verificationKeyJson": "0.02"
+  },
+  "results": [
+    {
+      "kc": 2,
+      "peakRssMiB": 694.8,
+      "ms": {
+        "encrypt": {
+          "cold": 75.8,
+          "median": 80.4,
+          "min": 75.8,
+          "max": 87.4
+        },
+        "validityWitness": {
+          "cold": 384.1,
+          "median": 376.9,
+          "min": 376.4,
+          "max": 380.3
+        },
+        "validityProve": {
+          "cold": 8767,
+          "median": 8666.4,
+          "min": 8660.5,
+          "max": 8685.1
+        },
+        "validityVerify": {
+          "cold": 248,
+          "median": 11.6,
+          "min": 9.8,
+          "max": 11.9
+        },
+        "semaphoreProve": {
+          "cold": 198.7,
+          "median": 161.1,
+          "min": 152.9,
+          "max": 195.4
+        },
+        "semaphoreProveSingleThread": {
+          "cold": 758.5,
+          "median": 757.9,
+          "min": 755.3,
+          "max": 763.3
+        },
+        "semaphoreVerify": {
+          "cold": 12.5,
+          "median": 9.8,
+          "min": 9.3,
+          "max": 10.3
+        },
+        "boxSubmit": {
+          "cold": 23,
+          "median": 22.8,
+          "min": 22.8,
+          "max": 24.9
+        }
+      }
+    },
+    {
+      "kc": 8,
+      "peakRssMiB": 677.6,
+      "ms": {
+        "encrypt": {
+          "cold": 272.4,
+          "median": 275.4,
+          "min": 273.3,
+          "max": 278
+        },
+        "validityWitness": {
+          "cold": 379.5,
+          "median": 372.4,
+          "min": 371.5,
+          "max": 382.6
+        },
+        "validityProve": {
+          "cold": 8865.4,
+          "median": 8764.1,
+          "min": 8716,
+          "max": 8803.1
+        },
+        "validityVerify": {
+          "cold": 228.9,
+          "median": 10.9,
+          "min": 9.3,
+          "max": 11
+        },
+        "semaphoreProve": {
+          "cold": 161.5,
+          "median": 156.8,
+          "min": 146.8,
+          "max": 160.7
+        },
+        "semaphoreProveSingleThread": {
+          "cold": 777.6,
+          "median": 761,
+          "min": 760.2,
+          "max": 764
+        },
+        "semaphoreVerify": {
+          "cold": 10.7,
+          "median": 9.7,
+          "min": 9.3,
+          "max": 10.5
+        },
+        "boxSubmit": {
+          "cold": 23.8,
+          "median": 23.1,
+          "min": 23.1,
+          "max": 23.4
+        }
+      }
+    },
+    {
+      "kc": 16,
+      "peakRssMiB": 683.7,
+      "ms": {
+        "encrypt": {
+          "cold": 541.4,
+          "median": 544.2,
+          "min": 543.3,
+          "max": 549.2
+        },
+        "validityWitness": {
+          "cold": 378.1,
+          "median": 375.9,
+          "min": 373.5,
+          "max": 377.3
+        },
+        "validityProve": {
+          "cold": 8930.4,
+          "median": 8859.1,
+          "min": 8845.9,
+          "max": 8889.3
+        },
+        "validityVerify": {
+          "cold": 202.1,
+          "median": 13.2,
+          "min": 12.4,
+          "max": 14.2
+        },
+        "semaphoreProve": {
+          "cold": 172.5,
+          "median": 150.1,
+          "min": 145.2,
+          "max": 151.5
+        },
+        "semaphoreProveSingleThread": {
+          "cold": 772,
+          "median": 767.6,
+          "min": 761.9,
+          "max": 768
+        },
+        "semaphoreVerify": {
+          "cold": 10.3,
+          "median": 9.4,
+          "min": 9.2,
+          "max": 14
+        },
+        "boxSubmit": {
+          "cold": 24.1,
+          "median": 23.3,
+          "min": 23.1,
+          "max": 23.4
+        }
+      }
+    }
+  ]
+}

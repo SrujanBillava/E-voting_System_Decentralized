@@ -1,0 +1,8 @@
+# Large / generated / local-only. Rebuild everything with `npm run build:circuit`.
+node_modules/
+artifacts/
+*.ptau
+*.zkey
+*.wtns
+*.r1cs
+*.sym

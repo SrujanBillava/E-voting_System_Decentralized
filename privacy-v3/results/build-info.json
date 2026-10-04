@@ -1,0 +1,35 @@
+{
+  "builtAt": "2026-10-04T18:56:57.885Z",
+  "circomVersion": "circom compiler 2.2.3",
+  "snarkjs": "0.7.5",
+  "circuit": {
+    "file": "circuits/ballot_validity.circom",
+    "constraints": 54590,
+    "wires": 54563,
+    "publicInputs": 72,
+    "publicOutputs": 1,
+    "privateInputs": 32
+  },
+  "sizesMiB": {
+    "r1cs": "15.13",
+    "wasm": "2.33",
+    "zkey": "32.31",
+    "verificationKeyJson": "0.02"
+  },
+  "sha256": {
+    "ptau": "9693220206afab749e3d88d4ab5fdf5d36120ea102e7e587ccea0e7a5208e711",
+    "r1cs": "52f395962a2fd41fd40a7ecdc48ad609cc5c5d9d4d6339299f2fdb0b872faa04",
+    "wasm": "1aa0c5ef018134c3c9b1b300c7c5a8695cca570e58c8082e8ed736f1d73bfa0f",
+    "zkey": "5c408c3e6da874320aa0b128c12203beed172acc88f385f313ba374b72cd5f46",
+    "verificationKey": "6eb9ae20aa6a20f15051a9885952f9b6317c99e008e0aa791299bf77e60816fc",
+    "semaphore-3.wasm": "48e15502f710be0a623d573d472edeeaf918fd5eee0b2ca9b407c4e4f20d12f2",
+    "semaphore-3.zkey": "c36653c42784df35a01f3d93415af9ad8292a540f8deb134a6a34a01752a89d3"
+  },
+  "buildTimingsMs": {
+    "compile": 4864,
+    "zkey_new": 26562,
+    "zkey_contribute": 2939,
+    "zkey_verify": 26807
+  },
+  "setupNote": "Phase 1 = Perpetual Powers of Tau (PSE ppot_0080_18). Phase 2 = ONE local contribution with discarded random entropy: TEST ONLY, not a ceremony."
+}
