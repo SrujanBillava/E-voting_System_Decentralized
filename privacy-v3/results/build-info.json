@@ -1,35 +1,37 @@
 {
-  "builtAt": "2026-10-04T18:56:57.885Z",
+  "builtAt": "2026-10-04T19:30:46.809Z",
   "circomVersion": "circom compiler 2.2.3",
   "snarkjs": "0.7.5",
   "circuit": {
     "file": "circuits/ballot_validity.circom",
-    "constraints": 54590,
-    "wires": 54563,
-    "publicInputs": 72,
-    "publicOutputs": 1,
+    "constraints": 49136,
+    "wires": 49105,
+    "publicInputs": 68,
+    "publicOutputs": 0,
     "privateInputs": 32
   },
   "sizesMiB": {
-    "r1cs": "15.13",
-    "wasm": "2.33",
-    "zkey": "32.31",
+    "r1cs": "10.30",
+    "wasm": "0.26",
+    "zkey": "25.45",
     "verificationKeyJson": "0.02"
   },
   "sha256": {
     "ptau": "9693220206afab749e3d88d4ab5fdf5d36120ea102e7e587ccea0e7a5208e711",
-    "r1cs": "52f395962a2fd41fd40a7ecdc48ad609cc5c5d9d4d6339299f2fdb0b872faa04",
-    "wasm": "1aa0c5ef018134c3c9b1b300c7c5a8695cca570e58c8082e8ed736f1d73bfa0f",
-    "zkey": "5c408c3e6da874320aa0b128c12203beed172acc88f385f313ba374b72cd5f46",
-    "verificationKey": "6eb9ae20aa6a20f15051a9885952f9b6317c99e008e0aa791299bf77e60816fc",
+    "r1cs": "8cf62bd036a2d7c240d98d599eccbfb3f63ee2789fb0d07e13cc6effa67c047a",
+    "wasm": "15c7ce50f6efc22759c24e399bf8ed6f16adef881930da466542608e7f51d3df",
+    "zkey": "8be58c6d8b445ce91167bb7c9f117b1dee5107a6b0de71be5eb49be1017d2816",
+    "verificationKey": "6bd3195a26aa7aa1e78e629d9f8d05cb5e4fbf8148500d5d22a4f60c5afad61d",
     "semaphore-3.wasm": "48e15502f710be0a623d573d472edeeaf918fd5eee0b2ca9b407c4e4f20d12f2",
-    "semaphore-3.zkey": "c36653c42784df35a01f3d93415af9ad8292a540f8deb134a6a34a01752a89d3"
+    "semaphore-3.zkey": "c36653c42784df35a01f3d93415af9ad8292a540f8deb134a6a34a01752a89d3",
+    "semaphore-20.wasm": "6f71e55586929e520e76027ebe067daac8b41e2f4b8057313a5fd0304e1e44ee",
+    "semaphore-20.zkey": "33f9a067a80c7daf90e085449073613a9559a1904dd40aeb6d603afb7988c2cc"
   },
   "buildTimingsMs": {
-    "compile": 4864,
-    "zkey_new": 26562,
-    "zkey_contribute": 2939,
-    "zkey_verify": 26807
+    "compile": 4074,
+    "zkey_new": 17485,
+    "zkey_contribute": 2725,
+    "zkey_verify": 18313
   },
   "setupNote": "Phase 1 = Perpetual Powers of Tau (PSE ppot_0080_18). Phase 2 = ONE local contribution with discarded random entropy: TEST ONLY, not a ceremony."
 }

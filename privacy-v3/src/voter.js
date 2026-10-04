@@ -1,7 +1,7 @@
 // The voter side ("client"): builds one anonymous, encrypted, proven ballot. Everything secret (identity, choice, randomness) stays in here.
 import { ballotHash, encryptVector, oneHot, padCiphertexts, validityCircuitInput, validityPublicSignals } from "./ballot.js";
 import { assertValidPublicKey } from "./elgamal.js";
-import { constituencyField, electionScope, K_MAX } from "./params.js";
+import { SEMAPHORE_DEPTH, constituencyIdValue, electionScope, K_MAX } from "./params.js";
 import { nullifierOf, proveMembership } from "./semaphore.js";
 import { proveValidity } from "./validity.js";
 
@@ -14,7 +14,7 @@ export const serializeCiphertext = (ct) => ({ c1: pointToStrings(ct.c1), c2: poi
  */
 export function prepareBallot({ identity, ctx, constituency, kc, choice, H, m: forcedVector }) {
   assertValidPublicKey(H); // never encrypt a vote under a key that is off-curve, the identity or has a torsion component (one scalar multiplication, not part of encryptMs)
-  const constituencyId = constituencyField(constituency);
+  const constituencyId = constituencyIdValue(constituency);
   const scope = electionScope(ctx);
   const nullifier = nullifierOf(identity, scope);
   const t = performance.now();
@@ -36,18 +36,19 @@ export const wireCiphertexts = (ciphertexts, kc) => ciphertexts.slice(0, kc).map
  * @param {number} p.kc            number of candidates of that constituency (public election data)
  * @param {number} p.choice        0-based candidate index (SECRET)
  * @param {bigint[]} p.H           election public key
+ * @param {number} [p.depth]       Semaphore depth to prove at (default: the frozen declared depth 20)
  * @returns the wire submission (JSON-safe: decimal strings only) plus timings
  */
-export async function castBallot({ identity, group, ctx, constituency, kc, choice, H }) {
+export async function castBallot({ identity, group, ctx, constituency, kc, choice, H, depth = SEMAPHORE_DEPTH }) {
   const ballot = prepareBallot({ identity, ctx, constituency, kc, choice, H });
   const { constituencyId, scope, nullifier, m, r, ciphertexts, hash } = ballot;
 
   let t = performance.now();
-  const semaphore = await proveMembership({ identity, group, message: hash, scope });
+  const semaphore = await proveMembership({ identity, group, message: hash, scope, depth });
   const semaphoreProveMs = performance.now() - t;
 
-  const validity = await proveValidity(validityCircuitInput({ ctx, constituencyId, kc, H, nullifier, ciphertexts, m, r }));
-  const expected = validityPublicSignals({ ctx, constituencyId, kc, H, nullifier, ciphertexts, hash });
+  const validity = await proveValidity(validityCircuitInput({ kc, H, nullifier, ciphertexts, m, r }));
+  const expected = validityPublicSignals({ kc, H, nullifier, ciphertexts });
   if (JSON.stringify(validity.publicSignals) !== JSON.stringify(expected)) throw new Error("validity proof public signals differ from the expected statement");
 
   return {

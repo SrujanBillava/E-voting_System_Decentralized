@@ -1,7 +1,7 @@
 // Builds everything the prototype needs under privacy-v3/artifacts (git-ignored, large):
 //   bin/circom                      circom 2.2.3 release binary (downloaded, version printed)
 //   ptau/ppot_0080_18.ptau          Perpetual Powers of Tau (PSE, contribution 80, 2^18), already phase-2 prepared
-//   semaphore/semaphore-<d>.{wasm,zkey}   official Semaphore v4 artifacts for the group depths the demo uses
+//   semaphore/semaphore-<d>.{wasm,zkey}   official Semaphore v4 artifacts for the pinned depths (3 for fast tests, 20 = frozen architecture)
 //   build/ballot_validity.{r1cs,sym}, ballot_validity_js/   compiled circuit
 //   build/ballot_validity_0000.zkey, ballot_validity_final.zkey, verification_key.json
 // The phase-2 contribution made here is a single LOCAL contribution: TEST ONLY, not a ceremony.
@@ -23,7 +23,15 @@ const MiB = (bytes) => (bytes / 1048576).toFixed(2);
 const CIRCOM_URL = "https://github.com/iden3/circom/releases/download/v2.2.3/circom-linux-amd64";
 const PTAU_URL = "https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/ppot_0080_18.ptau";
 const SEMAPHORE_URL = (d, ext) => `https://snark-artifacts.pse.dev/semaphore/4.13.0/semaphore-${d}.${ext}`;
-const SEMAPHORE_DEPTHS = (process.env.SEMAPHORE_DEPTHS ?? "3").split(",").map(Number); // 5 members -> depth 3
+// Depth 20 is the frozen architecture; depth 3 is only for fast tests. Both are PINNED: the artifact set 4.13.0 is the one @semaphore-protocol/proof 4.14.3 asks for,
+// and the SHA-256 of every file is checked after download (and by test/semaphore.depth20.test.mjs), so a changed artifact fails the build instead of being used.
+const SEMAPHORE_DEPTHS = (process.env.SEMAPHORE_DEPTHS ?? "3,20").split(",").map(Number);
+const SEMAPHORE_SHA256 = {
+  "semaphore-3.wasm": "48e15502f710be0a623d573d472edeeaf918fd5eee0b2ca9b407c4e4f20d12f2",
+  "semaphore-3.zkey": "c36653c42784df35a01f3d93415af9ad8292a540f8deb134a6a34a01752a89d3",
+  "semaphore-20.wasm": "6f71e55586929e520e76027ebe067daac8b41e2f4b8057313a5fd0304e1e44ee",
+  "semaphore-20.zkey": "33f9a067a80c7daf90e085449073613a9559a1904dd40aeb6d603afb7988c2cc",
+};
 
 async function download(url, file) {
   if (fs.existsSync(file) && fs.statSync(file).size > 0) return;
@@ -53,7 +61,14 @@ if (process.platform === "linux" && process.arch === "x64") {
 const circomVersion = execFileSync(A("bin", "circom"), ["--version"]).toString().trim();
 log(circomVersion);
 await download(PTAU_URL, A("ptau", "ppot_0080_18.ptau"));
-for (const d of SEMAPHORE_DEPTHS) for (const ext of ["wasm", "zkey"]) await download(SEMAPHORE_URL(d, ext), A("semaphore", `semaphore-${d}.${ext}`));
+for (const d of SEMAPHORE_DEPTHS) {
+  for (const ext of ["wasm", "zkey"]) {
+    const name = `semaphore-${d}.${ext}`;
+    await download(SEMAPHORE_URL(d, ext), A("semaphore", name));
+    const expected = SEMAPHORE_SHA256[name];
+    if (expected && sha256(A("semaphore", name)) !== expected) throw new Error(`${name}: SHA-256 differs from the pinned Semaphore 4.13.0 artifact; refusing to use it (delete it to download again)`);
+  }
+}
 
 // ---------------------------------------------------------------- compile
 const r1cs = A("build", "ballot_validity.r1cs");

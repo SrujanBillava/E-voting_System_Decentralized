@@ -1,14 +1,15 @@
 // The verifier side ("election server / contract" in the later integration). In-memory here.
 // A submission is accepted only if ALL of the following hold, and the nullifier is consumed atomically at the very end:
 //   1. well-formed, for a known constituency, with exactly kc ciphertexts that are curve points
-//   2. the Semaphore proof is for THIS election's scope, THIS constituency's group root and message == ballotHash(exact ciphertexts + context)
+//   2. the Semaphore proof is for THIS election's scope, the declared depth, THIS constituency's group root, and message == the keccak ballotHash of
+//      (tag, chainId, contract, electionId, constituencyId, exact ciphertext coordinates)
 //   3. the Semaphore proof verifies (anonymous membership)
-//   4. the Groth16 validity proof verifies for the public statement rebuilt HERE (election key H, kc, context, ciphertexts and the SAME nullifier)
+//   4. the Groth16 validity proof verifies for the 68-signal statement rebuilt HERE (own H and kc, the received ciphertexts, the SAME nullifier)
 //   5. the nullifier was not used before
 import { inCurve } from "@zk-kit/baby-jubjub";
 import { ballotHash, padCiphertexts, validityPublicSignals } from "./ballot.js";
 import { addCiphertexts, assertValidPublicKey, decryptToPoint, identityCiphertext, makeDiscreteLog } from "./elgamal.js";
-import { BASE_FIELD, FIELD_PRIME, K_MAX, constituencyField, electionScope } from "./params.js";
+import { BASE_FIELD, FIELD_PRIME, K_MAX, SEMAPHORE_DEPTH, constituencyIdValue, electionScope } from "./params.js";
 import { verifyMembership } from "./semaphore.js";
 import { verifyValidity } from "./validity.js";
 
@@ -34,6 +35,8 @@ function decimal(value, what, limit = FIELD_PRIME) {
   return v;
 }
 const field = (value, what) => decimal(value, what, FIELD_PRIME);
+/** a full 256-bit value (the Semaphore message is a keccak digest; Semaphore hashes message and scope again before its circuit) */
+const uint256 = (value, what) => decimal(value, what, 1n << 256n);
 function point(value, what) {
   if (!Array.isArray(value) || value.length !== 2) throw new Rejected("MALFORMED", what);
   const p = [field(value[0], `${what}.x`), field(value[1], `${what}.y`)];
@@ -68,8 +71,8 @@ function semaphoreProof(sem) {
     merkleTreeDepth: sem.merkleTreeDepth,
     merkleTreeRoot: field(sem.merkleTreeRoot, "semaphore.merkleTreeRoot").toString(),
     nullifier: field(sem.nullifier, "semaphore.nullifier").toString(),
-    message: field(sem.message, "semaphore.message").toString(),
-    scope: field(sem.scope, "semaphore.scope").toString(),
+    message: uint256(sem.message, "semaphore.message").toString(),
+    scope: uint256(sem.scope, "semaphore.scope").toString(),
     points: sem.points.map((v) => decimal(v, "semaphore.points", BASE_FIELD).toString()),
   };
 }
@@ -79,17 +82,20 @@ export class BallotBox {
    * @param {{chainId:bigint, contractAddress:bigint, electionId:bigint}} ctx
    * @param {bigint[]} publicKey  election key H (validated once, here)
    * @param {Record<string,{kc:number, group:import("@semaphore-protocol/group").Group}>} constituencies  membership is frozen: the root is read now
+   * @param {number} [semaphoreDepth]  the declared depth EVERY membership proof must use (frozen architecture: 20)
    */
-  constructor({ ctx, publicKey, constituencies }) {
+  constructor({ ctx, publicKey, constituencies, semaphoreDepth = SEMAPHORE_DEPTH }) {
     assertValidPublicKey(publicKey); // the election key is validated here, once, before anything is accepted under it
     this.ctx = ctx;
     this.H = publicKey;
     this.scope = electionScope(ctx);
+    this.semaphoreDepth = semaphoreDepth;
     this.cfg = new Map();
     this.sums = new Map();
     for (const [code, { kc, group }] of Object.entries(constituencies)) {
       if (!Number.isInteger(kc) || kc < 1 || kc > K_MAX) throw new RangeError(`kc of ${code} must be in 1..${K_MAX}`);
-      this.cfg.set(code, { kc, depth: group.depth, root: BigInt(group.root), id: constituencyField(code) });
+      if (group.depth > semaphoreDepth) throw new RangeError(`the group of ${code} needs depth ${group.depth}, which exceeds the declared depth ${semaphoreDepth}`);
+      this.cfg.set(code, { kc, root: BigInt(group.root), id: constituencyIdValue(code) });
       this.sums.set(code, Array.from({ length: kc }, identityCiphertext));
     }
     this.used = new Set(); // nullifiers, election-wide
@@ -129,7 +135,8 @@ export class BallotBox {
 
     // ---- 2. the Semaphore proof is about THIS election, THIS group and EXACTLY this ballot
     if (scope !== this.scope) throw new Rejected("WRONG_SCOPE");
-    if (root !== cfg.root || sem.merkleTreeDepth !== cfg.depth) throw new Rejected("NOT_A_MEMBER", "the proof is not for this constituency's group");
+    if (sem.merkleTreeDepth !== this.semaphoreDepth) throw new Rejected("WRONG_DEPTH", `membership proofs must use the declared depth ${this.semaphoreDepth}`);
+    if (root !== cfg.root) throw new Rejected("NOT_A_MEMBER", "the proof is not for this constituency's group");
     const hash = ballotHash(this.ctx, cfg.id, padded);
     if (message !== hash) throw new Rejected("BALLOT_NOT_BOUND", "the Semaphore message is not the hash of these ciphertexts in this election context");
 
@@ -139,8 +146,9 @@ export class BallotBox {
     // ---- 3. anonymous membership
     if (!(await verifyMembership(sem))) throw new Rejected("BAD_MEMBERSHIP_PROOF");
 
-    // ---- 4. ballot validity for the statement the VERIFIER rebuilds (own H, own kc, own context, this nullifier)
-    const statement = validityPublicSignals({ ctx: this.ctx, constituencyId: cfg.id, kc: cfg.kc, H: this.H, nullifier, ciphertexts: padded, hash });
+    // ---- 4. ballot validity for the 68-signal statement the VERIFIER rebuilds: its own kc and H, the Semaphore nullifier, the received ciphertexts
+    //         (chain / contract / election / constituency are NOT circuit inputs: they are bound through the keccak message checked above)
+    const statement = validityPublicSignals({ kc: cfg.kc, H: this.H, nullifier, ciphertexts: padded });
     if (!(await verifyValidity(validityProof, statement))) throw new Rejected("BAD_VALIDITY_PROOF");
 
     // ---- 5. commit atomically (no await between the check and the insert: of N concurrent copies exactly one gets here first)
