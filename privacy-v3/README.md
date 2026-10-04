@@ -19,7 +19,7 @@ npm install                 # exact, pinned dependencies (own package-lock.json)
 npm run build:circuit       # downloads circom 2.2.3 + PSE Perpetual Powers of Tau (2^18) + the official Semaphore 4.13.0 artifacts for depth 20 (frozen)
                             # and depth 3 (fast tests), SHA-256 pinned; compiles the circuit, runs the Groth16 setup (~1 min). Everything lands in git-ignored artifacts/
 npm run demo                # 5 fake Bengaluru voters, votes A,B,A -> A=2 B=1 C=0 (fixed scenario; keys, randomness and proofs are fresh every run)
-npm test                    # 142 tests, real proofs, ~95 s
+npm test                    # 157 tests, real proofs, ~95 s
 npm run bench               # kc = 2, 8, 16 (results/bench.json);  npm run bench:single  = no worker threads
 ```
 
@@ -39,14 +39,18 @@ src/ballotbox.js                  the verifier side: strict parsing, all checks,
 testing/fake-voters.js            TEST/DEMO ONLY: deterministic, label-derived Semaphore identities. src/ must never import this (a test enforces it)
 scripts/build-circuit.mjs         reproducible build (hashes recorded in results/build-info.json)
 scripts/demo.mjs, bench.mjs       demo and benchmarks
-test/                             142 tests (see results/RESULTS.md for the list)
+test/                             157 tests (see results/RESULTS.md for the list)
+ENCODINGS.md                      the FROZEN scope and ballot-hash encodings, with copyable known-answer vectors
+spec/vectors.json                 the same vectors, machine-readable (verified by test/fast.params.test.mjs)
 results/                          build-info.json, bench*.json, test-report.txt, RESULTS.md
 ```
 
 ## The protocol in one page
 
 **Public election data:** context `(chainId, contractAddress, electionId)` (fixed test constants here; `electionId` is the full bytes32), election public key `H`, per constituency: its
-bytes32 id (`keccak256(code)`), `kc` (1..16 candidates) and the Semaphore group (membership = identity commitments). **Scope** = one election-wide value (see "Known differences" below).
+bytes32 id (`keccak256(code)`), `kc` (1..16 candidates) and the Semaphore group (membership = identity commitments). **Scope** = one election-wide value,
+`uint256(keccak256(abi.encode(bytes32 SCOPE_TAG, uint256 chainId, address contractAddress, bytes32 electionId)))` with `SCOPE_TAG = keccak256("VOTECHAIN-V3-SCOPE-1")`: the full 256 bits, no truncation, no Poseidon.
+Both encodings are frozen in [`ENCODINGS.md`](ENCODINGS.md).
 
 **Voter (browser, in production):** Semaphore identity -> `nullifier = Poseidon(hash(scope), secret)` (Poseidon is Semaphore's own internal primitive).
 Choose candidate `c < kc` -> `m = one-hot(c)` (length 16, zeros after `kc`) -> for `j < kc`: `C1_j = r_j*G`, `C2_j = m_j*G + r_j*H` with a fresh `r_j`;
@@ -55,7 +59,7 @@ slots `j >= kc` are the canonical identity pair `((0,1),(0,1))`. Then the **froz
 ```
 ballotHash = uint256( keccak256( abi.encode( bytes32 tag, uint256 chainId, address contract, bytes32 electionId, bytes32 constituencyId, uint256[64] coords ) ) )
 coords     = for slot j = 0..15: [C1.x, C1.y, C2.x, C2.y]      (slot-major, padded slots included as the identity pair; 64 words)
-tag        = keccak256("VOTECHAIN-V3-BALLOT-1")                 (prototype value)
+tag        = BALLOT_TAG = keccak256("VOTECHAIN-V3-BALLOT-1")
 ```
 
 It is a full 256-bit value used directly as the **Semaphore message** (Semaphore hashes message and scope again, keccak >> 8, before its circuit). The voter proves membership **at depth 20**
@@ -79,17 +83,18 @@ Aggregates are decrypted (TEST key) only after the election: `C2sum - s*C1sum = 
 | Validity circuit public signals | 73 (`ballotHash` output + chainId, contract, electionId, constituencyId, kc, H, nullifier, 64 coords) | **68**: `nullifier, kc, H.x, H.y`, 64 coords; no output |
 | Constraints | 54,590 | **49,136** |
 | Semaphore depth | 3 (demo groups) | **20** for every proof; depth 3 only in fast tests |
+| Election scope | Poseidon over `(tag, chainId, contract, electionId >> 8)` | `uint256(keccak256(abi.encode(SCOPE_TAG, chainId, contract, electionId)))`, full election id, no truncation |
 
-Poseidon is now used only where Semaphore itself needs it (identity commitment and nullifier, via the Semaphore libraries and `nullifierOf`) and for the election scope (below).
+Poseidon is now used only inside Semaphore itself (identity commitment and nullifier, via the Semaphore libraries and `nullifierOf`); none of our own hashes use it.
 The depth-20 artifacts are the pinned Semaphore **4.13.0** set that `@semaphore-protocol/proof` 4.14.3 requests; they are loaded from `artifacts/semaphore` with SHA-256 checks, and the adapter never lets the
 library download anything (`test/semaphore.depth20.test.mjs` traps every network entry point while proving and verifying at depth 20).
 
-### Known differences from the frozen architecture (not changed in this pass)
+### Frozen encodings
 
-* **Scope.** The frozen text says the election scope is `keccak(tag, chainid, contract, electionId)`; the prototype still derives it with Poseidon over `(tag, chainId, contract, electionId >> 8)`.
-  Because of the `>> 8` an election id that differs from another only in its lowest 8 bits would get the *same* scope (a test shows the keccak ballot hash still tells them apart). Moving the scope to keccak is a one-line change.
-* **Assumptions the contract must match** (the frozen text does not fix them): the ABI types above (`uint256[64]` encoded as a static array), the slot-major coordinate order, hashing all 64 coordinates with padding included, and the tag value.
-  `test/fast.params.test.mjs` pins two known-answer hashes (identity padding, and sequential coordinates) plus an independent hand-rolled encoding for the implementer to reproduce.
+No known differences from the frozen architecture remain. [`ENCODINGS.md`](ENCODINGS.md) freezes the scope and the ballot hash for the future Solidity contract: `abi.encode` only (never `abi.encodePacked`);
+a static `uint256[64]` (not a dynamic `uint256[]`), 16 slots, slot-major `C1.x, C1.y, C2.x, C2.y`, all 64 coordinates hashed, padded slots = the canonical identity ciphertext `(0,1,0,1)`.
+`spec/vectors.json` holds known-answer vectors (6 scope, 6 ballot-hash, including real ElGamal ciphertexts) that the contract must reproduce; `test/fast.params.test.mjs` checks them against the code,
+against an independent hand-rolled encoding (concatenated 32-byte words + keccak256), and against the document, so none of the three can drift.
 
 ## Two invariants that are enforced, not just documented
 

@@ -142,6 +142,10 @@ describe("Privacy V3 core: anonymous encrypted verified ballots", { skip: SKIP_N
       rejected(await other.submit(chennai.submission), "WRONG_SCOPE"); // a ballot of another election (same groups) is not accepted either
       const otherChain = new BallotBox({ ctx: { ...ctx, chainId: 1n }, publicKey: H, constituencies: { [CHE]: { kc: 3, group: groups[CHE] } } });
       rejected(await otherChain.submit(chennai.submission), "WRONG_SCOPE");
+      for (const electionId of [ctx.electionId ^ 1n, ctx.electionId ^ 0xffn]) {
+        const lowBits = new BallotBox({ ctx: { ...ctx, electionId }, publicKey: H, constituencies: { [CHE]: { kc: 3, group: groups[CHE] } } });
+        rejected(await lowBits.submit(chennai.submission), "WRONG_SCOPE"); // an election id differing only in its lowest 8 bits is a different election with a different scope
+      }
     });
   });
 

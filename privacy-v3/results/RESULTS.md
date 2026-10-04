@@ -81,13 +81,16 @@ Aggregate decrypted with the TEST key: **A = 2, B = 1, C = 0**. No individual ba
 
 Homomorphic test (`test/fast.elgamal.test.mjs`): `Enc([1,0,0]) + Enc([0,1,0]) + Enc([1,0,0])` -> **[2,1,0]**; 50 voters / 5 candidates match the expected counts; 4 constituencies (kc = 3, 4, 16, 3) tallied independently, sum of all totals == number of accepted ballots.
 
-## Tests: 142 passed, 0 failed, 0 skipped (`npm test`, 96 s)
+## Tests: 157 passed, 0 failed, 0 skipped (`npm test`, 95 s)
 
 | Area | Tests |
 |---|---|
-| Parameters; the circuit has exactly the frozen interface and no hash / context / Poseidon (static check of the source) | 4 |
-| Frozen keccak ballot hash: equals an independent hand-rolled encoding, two known-answer vectors, full 256-bit value, slot-major coordinates, binds every context field and all 64 coordinates | 5 |
+| Parameters; the circuit has exactly the frozen interface and no hash / context / Poseidon (static check of the source) | 3 |
+| Frozen keccak ballot hash: equals an independent hand-rolled encoding, known-answer vectors, full 256-bit value, slot-major coordinates, binds every context field and all 64 coordinates | 5 |
 | Validity statement: 68 public signals in the frozen order, circuit input layout | 1 |
+| **Frozen election scope** `keccak256(abi.encode(SCOPE_TAG, chainId, contract, electionId))`: tags, independent encoding, known-answer vector, chainId / contract / electionId each change it, election ids differing only in the lowest 8 bits differ, not `encodePacked`, no Poseidon, no truncation | 8 |
+| Frozen ballot-hash encoding: exact ABI types (static `uint256[64]`), 69-word / 2,208-byte preimage, `encodePacked` and dynamic-array variants give different hashes | 2 |
+| Known-answer vectors (`spec/vectors.json`, 6 scope + 6 ballot-hash) agree with the code, an independent encoding and `ENCODINGS.md` | 5 |
 | Election public key `H`: validation (off-curve, identity, all 7 non-identity torsion points of E[8], `H` + torsion, random curve points, malformed encodings) | 8 |
 | Election public key `H`: enforced by the voter (`prepareBallot` / `castBallot`) and by the ballot box, for 6 invalid key classes, plus a valid-key control | 13 |
 | RNG separation: no seed / RNG hook / test import / second entropy source in `src/` (static) | 5 |
@@ -99,7 +102,7 @@ Homomorphic test (`test/fast.elgamal.test.mjs`): `Enc([1,0,0]) + Enc([0,1,0]) + 
 | Circuit, kc range (0, 17, 32, 100, p-1; wrong kc claims) | 7 |
 | Circuit, ciphertext / key checks (modified coordinates, wrong message, wrong H, non-canonical padding, Enc(2), identity / order-2 / off-curve H, r = 2^251) | 10 |
 | Direct tampering of an honest witness file is rejected by the R1CS itself (two-hot, zero-hot, value 5, padded-slot vote, ciphertext, nullifier) | 1 |
-| Semaphore depth 20 with the pinned local artifacts (hashes, 5- and 1,200-member groups, nullifier invariance, binding, bad depths) | 6 |
+| Semaphore depth 20 with the pinned local artifacts (hashes, 5- and 1,200-member groups, nullifier invariance, binding, bad depths, the full-width keccak scope through the official API) | 7 |
 | Semaphore proving / verifying never touch the network (trap + control, zero attempts, missing artifacts fail, no downloader in `src/`) | 4 |
 | End to end at depth 20 with real Semaphore + Groth16 proofs and the ballot box (below) | 40 |
 
@@ -113,7 +116,7 @@ Homomorphic test (`test/fast.elgamal.test.mjs`): `Enc([1,0,0]) + Enc([0,1,0]) + 
 
 | Required case | Result |
 |---|---|
-| Non-member identity | cannot generate a proof for the real group; a valid proof for its OWN group -> `NOT_A_MEMBER`; patching the root -> `BAD_MEMBERSHIP_PROOF`; other constituency's ballot relabelled -> `NOT_A_MEMBER`; other election / chain -> `WRONG_SCOPE` |
+| Non-member identity | cannot generate a proof for the real group; a valid proof for its OWN group -> `NOT_A_MEMBER`; patching the root -> `BAD_MEMBERSHIP_PROOF`; other constituency's ballot relabelled -> `NOT_A_MEMBER`; other election / chain / an election id differing only in its lowest bit or lowest 8 bits -> `WRONG_SCOPE` |
 | Context binding (now through the keccak message, not the circuit) | a Semaphore proof signed over the ballot hash of another chain / contract / election (lowest bit only) / constituency, with the right scope and group -> `BALLOT_NOT_BOUND` (the correct hash is accepted); a ballot relabelled to another constituency that has the SAME group -> `BALLOT_NOT_BOUND` |
 | Wrong Semaphore depth | depth-3 proof at the depth-20 box -> `WRONG_DEPTH`; depth-20 proof at a depth-3 box -> `WRONG_DEPTH`; a depth-3 proof is accepted by a box declared at depth 3; a group needing more than the declared depth is refused at construction |
 | Reused nullifier | second ballot by the same voter (different choice) -> `NULLIFIER_USED`; totals unchanged |
@@ -145,10 +148,10 @@ Things to know (none required a parameter change):
 5. **Groth16 re-randomisation:** a proof can be rewritten into a different valid proof for the same statement; the box therefore also rejects non-canonical encodings (z != 1, hex, leading zeros, extra fields) and uses the nullifier, never a proof hash, as ballot identity.
 6. `@zk-kit/eddsa-poseidon` pulls `blake-hash`, which has an optional native install script (`node-gyp-build || exit 0`); the JS fallback works.
 7. A fixed-size circuit means small constituencies pay the K = 16 price; compile K variants (4 / 8 / 16 / 32 / 64) if proving time matters.
-8. **Scope derivation still differs from the frozen text** (Poseidon over `electionId >> 8`, frozen: keccak). The `>> 8` means election ids that differ only in their lowest 8 bits share a scope; the keccak ballot hash still separates them (tested). See `README.md`, "Known differences".
+8. **The scope is the frozen keccak value and goes through Semaphore unchanged.** It is a full 256-bit digest, so it is above the BN254 modulus for most elections; Semaphore applies its own `keccak256 >> 8` to it (as its verifier does), and any manual truncation or reduction breaks verification (tested). Election ids differing only in their lowest 8 bits give different scopes and nullifiers.
 
 ## Verdict
 
-**A. CORE PROTOTYPE PASSED, and aligned with the frozen architecture on the three points of this pass:** keccak ballot hash outside the circuit, the 68-signal validity interface, Semaphore at depth 20 with pinned local artifacts.
-One known difference remains by instruction: the Semaphore scope derivation (Poseidon instead of keccak). The core is ready to be *designed into* the application, but it is **not** a finished voting system: see "Honest limitations" in `README.md`
+**A. CORE PROTOTYPE PASSED, aligned with the frozen architecture.** Keccak ballot hash outside the circuit, the 68-signal validity interface, Semaphore at depth 20 with pinned local artifacts, and now the frozen keccak election scope; the scope and ballot-hash encodings are frozen in `ENCODINGS.md` with known-answer vectors for the contract.
+No known difference from the frozen architecture remains. The core is ready to be *designed into* the application, but it is **not** a finished voting system: see "Honest limitations" in `README.md`
 (single TEST key, test-only phase-2 setup, no threshold decryption / decryption proofs, no on-chain verifier, no browser measurements).

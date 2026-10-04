@@ -1,7 +1,6 @@
 // Shared constants of the isolated Privacy V3 core prototype.
 import { Base8, r as FIELD_PRIME, subOrder as SUBGROUP_ORDER } from "@zk-kit/baby-jubjub";
-import { id as keccakOfText } from "ethers";
-import { poseidon4 } from "poseidon-lite";
+import { AbiCoder, id as keccakOfText, keccak256, toBeHex } from "ethers";
 
 export { FIELD_PRIME, SUBGROUP_ORDER };
 
@@ -16,20 +15,26 @@ export const G = Object.freeze([...Base8]);
 /** The neutral element of the twisted Edwards curve. Also the canonical "padding" ciphertext half. */
 export const IDENTITY = Object.freeze([0n, 1n]);
 
-const asciiToBigInt = (text) => BigInt("0x" + Buffer.from(text, "ascii").toString("hex"));
+/** Ciphertext coordinates per slot, in this order: C1.x, C1.y, C2.x, C2.y. */
+export const COORDS_PER_SLOT = 4;
+/** All coordinates of a ballot: K_MAX slots x 4 = 64, padded slots included. */
+export const COORD_COUNT = K_MAX * COORDS_PER_SLOT;
 
-/**
- * Domain tag of the ballot hash: a bytes32 constant, keccak256("VOTECHAIN-V3-BALLOT-1"). PROTOTYPE VALUE: the real tag is fixed when the V3 contract is written.
- * (The Semaphore scope below still uses its own Poseidon-based tag; see README, "Known differences from the frozen architecture".)
- */
+// ------------------------------------------------------------------------------------------------------------------------------------------
+// FROZEN ENCODINGS (see ENCODINGS.md; known-answer vectors in spec/vectors.json). abi.encode ONLY, never abi.encodePacked.
+// ------------------------------------------------------------------------------------------------------------------------------------------
+
+/** bytes32 tags: keccak256 of the UTF-8 labels. */
+export const SCOPE_TAG = keccakOfText("VOTECHAIN-V3-SCOPE-1");
 export const BALLOT_TAG = keccakOfText("VOTECHAIN-V3-BALLOT-1");
-export const DOMAIN_SCOPE = asciiToBigInt("VOTECHAIN-V3-SCOPE-1");
+
+/** abi.encode(bytes32 SCOPE_TAG, uint256 chainId, address contractAddress, bytes32 electionId) */
+export const SCOPE_ABI_TYPES = Object.freeze(["bytes32", "uint256", "address", "bytes32"]);
+/** abi.encode(bytes32 BALLOT_TAG, uint256 chainId, address contractAddress, bytes32 electionId, bytes32 constituencyId, uint256[64] coords): a STATIC uint256[64], never a dynamic uint256[] */
+export const BALLOT_HASH_ABI_TYPES = Object.freeze(["bytes32", "uint256", "address", "bytes32", "bytes32", "uint256[64]"]);
 
 /** The Semaphore tree depth every proof is generated and verified at (frozen architecture). Smaller depths are only used by fast tests. */
 export const SEMAPHORE_DEPTH = 20;
-
-/** bytes32 -> BN254 field element by dropping the lowest 8 bits (the reduction Semaphore uses for keccak digests): injective on the top 248 bits. Used by the scope only. */
-export const bytes32ToField = (hex) => BigInt(hex) >> 8n;
 
 /** V2 convention: constituencyId = keccak256(utf8(code)), a bytes32. */
 export const constituencyIdOf = (code) => keccakOfText(code);
@@ -49,7 +54,13 @@ export const TEST_CONTEXT = Object.freeze({
 });
 
 /**
- * The Semaphore scope of an election: ONE scope for the whole election (not per constituency), so one identity can produce
- * exactly one nullifier per election. Semaphore itself hashes the scope again (keccak >> 8) before it enters its circuit.
+ * The frozen Semaphore scope of an election: ONE scope for the whole election (not per constituency), so one identity can produce exactly one
+ * nullifier per election.
+ *
+ *   SCOPE = uint256( keccak256( abi.encode( bytes32 SCOPE_TAG, uint256 chainId, address contractAddress, bytes32 electionId ) ) )
+ *
+ * The FULL 256-bit value is handed to Semaphore unchanged: no truncation here, no Poseidon. Semaphore V4 itself hashes the scope again
+ * (keccak256 >> 8) before it enters its circuit, exactly as its verifier does.
  */
-export const electionScope = (ctx) => poseidon4([DOMAIN_SCOPE, ctx.chainId, ctx.contractAddress, ctx.electionId >> 8n]);
+export const electionScope = (ctx) =>
+  BigInt(keccak256(AbiCoder.defaultAbiCoder().encode(SCOPE_ABI_TYPES, [SCOPE_TAG, ctx.chainId, toBeHex(ctx.contractAddress, 20), toBeHex(ctx.electionId, 32)])));
