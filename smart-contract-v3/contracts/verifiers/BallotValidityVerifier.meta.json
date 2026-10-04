@@ -1,0 +1,11 @@
+{
+  "contract": "Groth16Verifier",
+  "circuit": "privacy-v3/circuits/ballot_validity.circom",
+  "publicSignals": 68,
+  "snarkjs": "0.7.5",
+  "command": "snarkjs zkey export solidityverifier ballot_validity_final.zkey BallotValidityVerifier.sol",
+  "zkeySha256": "8be58c6d8b445ce91167bb7c9f117b1dee5107a6b0de71be5eb49be1017d2816",
+  "verificationKeySha256": "6bd3195a26aa7aa1e78e629d9f8d05cb5e4fbf8148500d5d22a4f60c5afad61d",
+  "solidityVerifierSha256": "2c666dd2a22872add29c489586b7eb9a26bd52474ae83827b6add2995a487bc5",
+  "setup": "TEST ONLY: Perpetual Powers of Tau phase 1 + ONE local phase-2 contribution (not a ceremony). Regenerate after any rebuild of the artifacts."
+}

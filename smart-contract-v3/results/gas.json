@@ -1,0 +1,185 @@
+{
+  "network": {
+    "hardfork": "osaka",
+    "blockGasLimit": 60000000,
+    "perTransactionGasCap": 16777216,
+    "chainId": 31337
+  },
+  "probes": {
+    "poseidonT3": {
+      "coldGas": 32227,
+      "warmGas": 29723
+    }
+  },
+  "submitBallot": {
+    "2": {
+      "kc": 2,
+      "coordinates": 8,
+      "ballots": [
+        {
+          "ballot": 1,
+          "gasUsed": 1138396,
+          "calldataBytes": 964,
+          "intrinsicGas": 35272
+        },
+        {
+          "ballot": 2,
+          "gasUsed": 1057368,
+          "calldataBytes": 964,
+          "intrinsicGas": 35272
+        },
+        {
+          "ballot": 3,
+          "gasUsed": 1057332,
+          "calldataBytes": 964,
+          "intrinsicGas": 35236
+        }
+      ],
+      "firstBallotGas": 1138396,
+      "steadyStateGas": 1057350,
+      "breakdownOfBallot3": {
+        "total": 1057332,
+        "intrinsicIncludingCalldata": 35236,
+        "semaphoreVerifyProof": 234161,
+        "groth16VerifyProof": 637978,
+        "babyJubJubArithmetic": 24295,
+        "storageEventHashingAndMemory": 125662
+      },
+      "percentOfTxGasCap": 6.8,
+      "percentOfBlockGasLimit": 1.9
+    },
+    "8": {
+      "kc": 8,
+      "coordinates": 32,
+      "ballots": [
+        {
+          "ballot": 1,
+          "gasUsed": 1477600,
+          "calldataBytes": 1732,
+          "intrinsicGas": 47500
+        },
+        {
+          "ballot": 2,
+          "gasUsed": 1273188,
+          "calldataBytes": 1732,
+          "intrinsicGas": 47500
+        },
+        {
+          "ballot": 3,
+          "gasUsed": 1273200,
+          "calldataBytes": 1732,
+          "intrinsicGas": 47512
+        }
+      ],
+      "firstBallotGas": 1477600,
+      "steadyStateGas": 1273194,
+      "breakdownOfBallot3": {
+        "total": 1273200,
+        "intrinsicIncludingCalldata": 47512,
+        "semaphoreVerifyProof": 234161,
+        "groth16VerifyProof": 637978,
+        "babyJubJubArithmetic": 97003,
+        "storageEventHashingAndMemory": 256546
+      },
+      "percentOfTxGasCap": 8.8,
+      "percentOfBlockGasLimit": 2.5
+    },
+    "16": {
+      "kc": 16,
+      "coordinates": 64,
+      "ballots": [
+        {
+          "ballot": 1,
+          "gasUsed": 1952728,
+          "calldataBytes": 2756,
+          "intrinsicGas": 63860
+        },
+        {
+          "ballot": 2,
+          "gasUsed": 1561040,
+          "calldataBytes": 2756,
+          "intrinsicGas": 63896
+        },
+        {
+          "ballot": 3,
+          "gasUsed": 1561028,
+          "calldataBytes": 2756,
+          "intrinsicGas": 63884
+        }
+      ],
+      "firstBallotGas": 1952728,
+      "steadyStateGas": 1561034,
+      "breakdownOfBallot3": {
+        "total": 1561028,
+        "intrinsicIncludingCalldata": 63884,
+        "semaphoreVerifyProof": 234161,
+        "groth16VerifyProof": 637978,
+        "babyJubJubArithmetic": 193947,
+        "storageEventHashingAndMemory": 431058
+      },
+      "percentOfTxGasCap": 11.6,
+      "percentOfBlockGasLimit": 3.3
+    }
+  },
+  "registerCommitmentBatch": {
+    "constituencyTreeFinalSize": 209,
+    "maxBatch": 128,
+    "rows": [
+      {
+        "commitments": 1,
+        "treeSizeBefore": 0,
+        "gasUsed": 206077,
+        "gasPerCommitment": 206077,
+        "poseidonHashes": 0,
+        "poseidonGas": 0,
+        "poseidonShare": 0,
+        "percentOfTxGasCap": 1.2,
+        "percentOfBlockGasLimit": 0.3,
+        "hardhatAutoEstimateGas": 206077
+      },
+      {
+        "commitments": 16,
+        "treeSizeBefore": 1,
+        "gasUsed": 1472457,
+        "gasPerCommitment": 92029,
+        "poseidonHashes": 16,
+        "poseidonGas": 475568,
+        "poseidonShare": 0.323,
+        "percentOfTxGasCap": 8.8,
+        "percentOfBlockGasLimit": 2.5,
+        "hardhatAutoEstimateGas": 1489712
+      },
+      {
+        "commitments": 64,
+        "treeSizeBefore": 17,
+        "gasUsed": 5162608,
+        "gasPerCommitment": 80666,
+        "poseidonHashes": 65,
+        "poseidonGas": 1931995,
+        "poseidonShare": 0.374,
+        "percentOfTxGasCap": 30.8,
+        "percentOfBlockGasLimit": 8.6,
+        "hardhatAutoEstimateGas": 5243273
+      },
+      {
+        "commitments": 128,
+        "treeSizeBefore": 81,
+        "gasUsed": 10137345,
+        "gasPerCommitment": 79198,
+        "poseidonHashes": 130,
+        "poseidonGas": 3863990,
+        "poseidonShare": 0.381,
+        "percentOfTxGasCap": 60.4,
+        "percentOfBlockGasLimit": 16.9,
+        "hardhatAutoEstimateGas": "fails: transaction gas limit (30412035) is greater than the cap (16777216)"
+      }
+    ],
+    "hashCountModel": {
+      "batchOf64IntoEmptyTree": 63,
+      "batchOf64IntoTreeOf600000": 71,
+      "batchOf128IntoEmptyTree": 127,
+      "batchOf128IntoTreeOf600000": 135,
+      "batchOf1IntoTreeOf600000": 8
+    }
+  }
+}

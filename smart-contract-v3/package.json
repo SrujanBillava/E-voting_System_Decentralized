@@ -1,0 +1,35 @@
+{
+  "name": "votechain-v3-contracts",
+  "version": "0.0.1",
+  "private": true,
+  "description": "VoteChain V3 smart-contract integration layer (isolated from the frozen V2 smart-contract/ project). Wraps the frozen privacy-v3 crypto core.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "export:verifier": "node scripts/export-verifier.mjs"
+  },
+  "dependencies": {
+    "@nomicfoundation/hardhat-ethers": "4.0.10",
+    "@nomicfoundation/hardhat-ethers-chai-matchers": "3.0.7",
+    "@nomicfoundation/hardhat-ignition": "3.1.4",
+    "@nomicfoundation/hardhat-ignition-ethers": "3.1.4",
+    "@nomicfoundation/hardhat-keystore": "3.0.8",
+    "@nomicfoundation/hardhat-mocha": "3.0.18",
+    "@nomicfoundation/hardhat-network-helpers": "3.0.7",
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "3.0.4",
+    "@nomicfoundation/hardhat-typechain": "3.0.8",
+    "@nomicfoundation/hardhat-verify": "3.0.16",
+    "@nomicfoundation/ignition-core": "3.1.4",
+    "@openzeppelin/contracts": "5.6.1",
+    "@semaphore-protocol/contracts": "4.14.3",
+    "chai": "6.2.2",
+    "ethers": "6.16.0",
+    "hardhat": "3.4.4",
+    "mocha": "11.7.5",
+    "typescript": "5.8.3"
+  }
+}
