@@ -2,6 +2,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { canonicalConstituencyCode, constituencyIdOf } from "../chain/ids.js";
 import { AppError } from "../utils/errors.js";
+import { exceedsBcryptLimit } from "../utils/password.js";
 import { readConstituencyById, requireSetup } from "./chainConfig.js";
 
 // No 0/O/1/I/L: readable when read aloud or typed from a printout.
@@ -39,6 +40,9 @@ export function createVoterService({ Voter, chain, audit, bcryptCost = 12, FaceT
     if (!(await readConstituencyById(chain, constituencyIdOf(code)))) throw new AppError(422, "UNKNOWN_CONSTITUENCY", "That constituency does not exist on-chain");
     return code;
   }
+  const requireBcryptSafe = (password) => {
+    if (exceedsBcryptLimit(password)) throw new AppError(400, "VALIDATION_FAILED", "Invalid request: password");
+  };
   const find = async (id) => {
     const voter = await Voter.findById(id);
     if (!voter) throw new AppError(404, "NOT_FOUND", "Voter not found");
@@ -61,6 +65,7 @@ export function createVoterService({ Voter, chain, audit, bcryptCost = 12, FaceT
 
   return {
     async create({ name, email, password, constituencyCode }, ctx) {
+      requireBcryptSafe(password);
       await requireSetup(chain);
       const code = await requireConstituency(constituencyCode);
       const passwordHash = await bcrypt.hash(password, bcryptCost);
@@ -127,6 +132,7 @@ export function createVoterService({ Voter, chain, audit, bcryptCost = 12, FaceT
     },
 
     async resetPassword(id, newPassword, ctx) {
+      requireBcryptSafe(newPassword);
       await requireSetup(chain);
       const voter = await find(id);
       voter.passwordHash = await bcrypt.hash(newPassword, bcryptCost);

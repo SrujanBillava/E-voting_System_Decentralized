@@ -165,12 +165,27 @@ export function createAdminAuthService({ Admin, AdminSession, audit, secrets, no
       return { adminId: String(admin._id), sessionId: String(session._id), admin: publicAdmin(admin) };
     },
 
-    /** Step-up for high-impact actions: a fresh, never-before-used TOTP code. */
+    /**
+     * Step-up for high-impact actions: a fresh, never-before-used TOTP code. Bad codes count toward the SAME failure counter and
+     * lockout as login, and a locked (or disabled) admin cannot step up at all, so a stolen access token cannot be used to guess codes.
+     */
     async verifyStepUp({ adminId, totp, ip, requestId }) {
       const admin = await Admin.findById(adminId).select("+totpSecretEncrypted");
-      const outcome = admin ? await consumeTotp(admin, totp) : "invalid";
+      const refuse = async (reason) => {
+        await audit.record({ action: "ADMIN_STEP_UP_FAILURE", result: "failure", adminId: admin?._id ?? null, requestId, ip, meta: { reason } });
+        throw new AppError(401, "INVALID_STEP_UP", "A fresh authenticator code is required");
+      };
+      if (!admin) return refuse("unknown_admin");
+      if (admin.status !== "active") return refuse("disabled");
+      if (admin.lockUntil && admin.lockUntil.getTime() > now()) return refuse("locked"); // no code is even checked while locked
+      const outcome = await consumeTotp(admin, totp);
+      if (outcome === "ok") {
+        await Admin.updateOne({ _id: admin._id }, { $set: { failedLoginCount: 0 } });
+        return;
+      }
+      await registerFailure(admin);
       if (outcome === "replay") await audit.record({ action: "TOTP_REPLAY_REJECTED", result: "failure", adminId, requestId, ip, meta: { reason: "step_up" } });
-      if (outcome !== "ok") throw new AppError(401, "INVALID_STEP_UP", "A fresh authenticator code is required");
+      return refuse(outcome === "replay" ? "totp_replay" : "bad_totp");
     },
   };
 }

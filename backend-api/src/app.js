@@ -21,7 +21,7 @@ import { AppError } from "./utils/errors.js";
  *
  * @param {{ config: { corsOrigins: readonly string[] }, logger: object, healthService: object }} deps
  */
-export function createApp({ config, logger, healthService, admin, voter, publicService, loginRateLimit, voterLoginRateLimit, publicReceiptRateLimit }) {
+export function createApp({ config, logger, healthService, admin, voter, publicService, loginRateLimit, stepUpRateLimit, voterLoginRateLimit, publicReceiptRateLimit }) {
   const app = express();
   app.disable("x-powered-by");
   app.set("etag", false);
@@ -60,7 +60,7 @@ export function createApp({ config, logger, healthService, admin, voter, publicS
   if (voter) app.use("/api/v1/voter", createVoterRouter({ authService: voter.authService, config, loginRateLimit: voterLoginRateLimit }));
   if (voter?.eligibilityService) app.use("/api/v1/voter", createVoterJourneyRouter({ authService: voter.authService, eligibilityService: voter.eligibilityService, authorizationService: voter.authorizationService, castService: voter.castService, receiptService: voter.receiptService, config }));
   if (publicService) app.use("/api/v1/public", createPublicRouter({ publicService, receiptRateLimit: publicReceiptRateLimit }));
-  if (admin) app.use("/api/v1/admin", createAdminRouter({ ...admin, config, loginRateLimit }));
+  if (admin) app.use("/api/v1/admin", createAdminRouter({ ...admin, config, loginRateLimit, stepUpRateLimit }));
 
   app.use(notFound);
   app.use(createErrorHandler({ logger }));

@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
+import { MAX_PASSWORD_BYTES, exceedsBcryptLimit } from "../utils/password.js";
 import { parse } from "../utils/validate.js";
 
 const objectId = z.string().regex(/^[0-9a-f]{24}$/i);
 const text = (max) => z.string().trim().min(1).max(max).refine((s) => !/[\u0000-\u001f\u007f]/.test(s), "control characters");
 const email = z.string().trim().max(254).email().toLowerCase();
-const password = z.string().min(12).max(72);
+const password = z.string().min(12).refine((p) => !exceedsBcryptLimit(p), `at most ${MAX_PASSWORD_BYTES} bytes`); // bcrypt input limit is 72 BYTES (UTF-8), not characters
 const code = z.string().trim().min(1).max(40);
 
 const CreateVoter = z.strictObject({ name: text(100), email, password, constituencyCode: code });

@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { CLOSED_OK_STAGES, SESSION_ABSOLUTE_MS, SESSION_IDLE_MS, STAGE_TTL_MS, STAGES, canTransition } from "../auth/voterStages.js";
 import { AppError } from "../utils/errors.js";
+import { exceedsBcryptLimit } from "../utils/password.js";
 import { readPhaseName } from "./chainConfig.js";
 import { VOTER_ID_PATTERN } from "./voter.service.js";
 
@@ -38,7 +39,10 @@ export function createVoterAuthService({ Voter, VoterSession, chain, audit, now 
       const byVoterId = VOTER_ID_PATTERN.test(identifier.trim().toUpperCase());
       const query = byVoterId ? { voterId: identifier.trim().toUpperCase() } : { email: identifier.trim().toLowerCase() };
       const voter = await Voter.findOne(query).select("+passwordHash");
-      const ok = await bcrypt.compare(password, voter?.passwordHash ?? dummyHash);
+      // A password over bcrypt's 72-byte limit can never be a real one (none can be created), and bcrypt would compare only its first 72 bytes.
+      const overlong = exceedsBcryptLimit(password);
+      const matches = await bcrypt.compare(password, voter?.passwordHash ?? dummyHash); // always run, so timing does not depend on the length
+      const ok = matches && !overlong;
       if (!voter || !ok) {
         await audit.record({ action: "VOTER_LOGIN_FAILURE", result: "failure", requestId, ip, meta: { reason: voter ? "bad_password" : "unknown_voter" } });
         throw invalid();

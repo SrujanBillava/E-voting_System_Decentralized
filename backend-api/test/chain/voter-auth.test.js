@@ -69,6 +69,21 @@ describe("voter authentication + session + stage machine (real chain + Mongo)", 
       assert.ok(!JSON.stringify(res.body).match(/uid|passwordHash|nullifier|token/i));
     });
 
+    it("a password longer than bcrypt's 72 bytes is refused, not truncated (the first 72 bytes alone must not log in)", async () => {
+      await open();
+      const exact = "é".repeat(36); // 72 bytes
+      voter.passwordHash = await bcrypt.hash(exact, 4);
+      await voter.save();
+      assert.equal((await login({ identifier: voter.voterId, password: exact })).status, 200);
+      await request(app).post("/api/v1/voter/auth/logout");
+      await VoterSession.updateMany({}, { $set: { active: false } });
+      for (const longer of [exact + "x", exact + "é", exact + "😀"]) {
+        const res = await login({ identifier: voter.voterId, password: longer });
+        assert.equal(res.status, 401, `${Buffer.byteLength(longer)} bytes`);
+        assert.equal(res.body.error.code, "INVALID_CREDENTIALS");
+      }
+    });
+
     it("email (any case/whitespace) works too; voterId is case-insensitive", async () => {
       await open();
       assert.equal((await login({ identifier: "  ASHA@Example.ORG ", password: PW })).status, 200);
