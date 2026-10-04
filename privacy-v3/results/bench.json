@@ -1,0 +1,175 @@
+{
+  "singleThread": false,
+  "measuredAt": "2026-10-04T19:00:53.534Z",
+  "machine": {
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13650HX",
+    "logicalCores": 20,
+    "ramGiB": 14.8,
+    "os": "Linux 7.0.0-38-generic",
+    "node": "v24.20.0"
+  },
+  "setup": {
+    "warmIterations": 5,
+    "note": "validity proving = snarkjs 0.7.5 groth16.prove on the zkey (multi-threaded WASM); witness = circom WASM witness calculator; all times in ms; browser/WASM-in-page timing not measured here"
+  },
+  "circuit": {
+    "file": "circuits/ballot_validity.circom",
+    "constraints": 54590,
+    "wires": 54563,
+    "publicInputs": 72,
+    "publicOutputs": 1,
+    "privateInputs": 32
+  },
+  "sizesMiB": {
+    "r1cs": "15.13",
+    "wasm": "2.33",
+    "zkey": "32.31",
+    "verificationKeyJson": "0.02"
+  },
+  "results": [
+    {
+      "kc": 2,
+      "peakRssMiB": 2281.2,
+      "ms": {
+        "encrypt": {
+          "cold": 74.8,
+          "median": 75.5,
+          "min": 73.2,
+          "max": 77.9
+        },
+        "validityWitness": {
+          "cold": 382.7,
+          "median": 382.4,
+          "min": 378.4,
+          "max": 391
+        },
+        "validityProve": {
+          "cold": 1759.5,
+          "median": 1413.5,
+          "min": 1403.2,
+          "max": 1467.9
+        },
+        "validityVerify": {
+          "cold": 8.6,
+          "median": 9,
+          "min": 8.6,
+          "max": 9.3
+        },
+        "semaphoreProve": {
+          "cold": 182.1,
+          "median": 147.9,
+          "min": 146.7,
+          "max": 181.3
+        },
+        "semaphoreVerify": {
+          "cold": 12.8,
+          "median": 9.3,
+          "min": 8.4,
+          "max": 10.9
+        },
+        "boxSubmit": {
+          "cold": 24.3,
+          "median": 22.4,
+          "min": 21.9,
+          "max": 22.8
+        }
+      }
+    },
+    {
+      "kc": 8,
+      "peakRssMiB": 2327.1,
+      "ms": {
+        "encrypt": {
+          "cold": 274,
+          "median": 292.7,
+          "min": 291.8,
+          "max": 293.6
+        },
+        "validityWitness": {
+          "cold": 377.1,
+          "median": 375.9,
+          "min": 372.2,
+          "max": 378.7
+        },
+        "validityProve": {
+          "cold": 1751.8,
+          "median": 1427.5,
+          "min": 1420.3,
+          "max": 1473.3
+        },
+        "validityVerify": {
+          "cold": 16,
+          "median": 10.2,
+          "min": 8.7,
+          "max": 10.6
+        },
+        "semaphoreProve": {
+          "cold": 165.8,
+          "median": 171,
+          "min": 150.3,
+          "max": 196.6
+        },
+        "semaphoreVerify": {
+          "cold": 9.6,
+          "median": 9.1,
+          "min": 8.9,
+          "max": 11
+        },
+        "boxSubmit": {
+          "cold": 23.4,
+          "median": 22.9,
+          "min": 21.7,
+          "max": 25.6
+        }
+      }
+    },
+    {
+      "kc": 16,
+      "peakRssMiB": 2327.6,
+      "ms": {
+        "encrypt": {
+          "cold": 548.8,
+          "median": 573.6,
+          "min": 570.4,
+          "max": 585.2
+        },
+        "validityWitness": {
+          "cold": 377.9,
+          "median": 377.8,
+          "min": 375.4,
+          "max": 380.8
+        },
+        "validityProve": {
+          "cold": 1724.2,
+          "median": 1459.6,
+          "min": 1416.3,
+          "max": 1497.5
+        },
+        "validityVerify": {
+          "cold": 10.6,
+          "median": 9.9,
+          "min": 9.1,
+          "max": 11.9
+        },
+        "semaphoreProve": {
+          "cold": 211.4,
+          "median": 192.4,
+          "min": 172.9,
+          "max": 200
+        },
+        "semaphoreVerify": {
+          "cold": 9.5,
+          "median": 9.2,
+          "min": 8.8,
+          "max": 11.9
+        },
+        "boxSubmit": {
+          "cold": 25.9,
+          "median": 22.6,
+          "min": 22.4,
+          "max": 39.3
+        }
+      }
+    }
+  ]
+}

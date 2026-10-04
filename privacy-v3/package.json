@@ -1,0 +1,29 @@
+{
+  "name": "votechain-privacy-v3-core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Isolated Privacy V3 cryptographic core prototype (Semaphore V4 + BabyJubJub ElGamal + Groth16 ballot validity). Not integrated with VoteChain V2.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:circuit": "node scripts/build-circuit.mjs",
+    "demo": "node scripts/demo.mjs",
+    "bench": "node scripts/bench.mjs",
+    "test": "node --test --test-concurrency=1 --test-timeout=600000 \"test/*.test.mjs\"",
+    "test:fast": "node --test --test-concurrency=1 --test-timeout=600000 \"test/fast.*.test.mjs\"",
+    "bench:single": "V3_SINGLE_THREAD=1 BENCH_WARM=3 node scripts/bench.mjs"
+  },
+  "dependencies": {
+    "@semaphore-protocol/group": "4.14.3",
+    "@semaphore-protocol/identity": "4.14.3",
+    "@semaphore-protocol/proof": "4.14.3",
+    "@zk-kit/baby-jubjub": "1.0.3",
+    "circomlib": "2.0.5",
+    "circomlibjs": "0.1.7",
+    "ethers": "6.13.4",
+    "poseidon-lite": "0.3.0",
+    "snarkjs": "0.7.5"
+  }
+}
