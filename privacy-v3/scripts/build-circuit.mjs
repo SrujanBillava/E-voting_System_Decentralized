@@ -3,10 +3,12 @@
 //   ptau/ppot_0080_18.ptau          Perpetual Powers of Tau (PSE, contribution 80, 2^18), already phase-2 prepared
 //   semaphore/semaphore-<d>.{wasm,zkey}   official Semaphore v4 artifacts for the pinned depths (3 for fast tests, 20 = frozen architecture)
 //   build/ballot_validity.{r1cs,sym}, ballot_validity_js/   compiled circuit
-//   build/ballot_validity_0000.zkey, ballot_validity_final.zkey, verification_key.json
-// The phase-2 contribution made here is a single LOCAL contribution: TEST ONLY, not a ceremony.
+//   build/ballot_validity_final.zkey, verification_key.json   the FINAL PROTOTYPE / RESEARCH ceremony output, provisioned from the committed ceremony/ and spec/ (see
+//                                   spec/final-ceremony.json): it cannot be rebuilt (the contribution entropy is gone by design), so it is checked against its pinned SHA-256, never regenerated.
+//                                   To run a NEW ceremony (which invalidates the verifier, the kiosk pins and every old proof): node scripts/final-ceremony.mjs --redo
+//   --verify-zkey                   additionally runs snarkjs' full verification of the zkey against the R1CS and the ptau (about 20 s)
 import { execFileSync } from "node:child_process";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +23,7 @@ const sha256 = (file) => createHash("sha256").update(fs.readFileSync(file)).dige
 const MiB = (bytes) => (bytes / 1048576).toFixed(2);
 
 const CIRCOM_URL = "https://github.com/iden3/circom/releases/download/v2.2.3/circom-linux-amd64";
+const PTAU_FILE = "ppot_0080_18.ptau";
 const PTAU_URL = "https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/ppot_0080_18.ptau";
 const SEMAPHORE_URL = (d, ext) => `https://snark-artifacts.pse.dev/semaphore/4.13.0/semaphore-${d}.${ext}`;
 // Depth 20 is the frozen architecture; depth 3 is only for fast tests. Both are PINNED: the artifact set 4.13.0 is the one @semaphore-protocol/proof 4.14.3 asks for,
@@ -79,17 +82,19 @@ if (force || !fs.existsSync(r1cs)) {
   });
 }
 
-// ---------------------------------------------------------------- Groth16 setup (phase 2)
-const zkey0 = A("build", "ballot_validity_0000.zkey");
+// ---------------------------------------------------------------- Groth16 phase 2: the FINAL PROTOTYPE ceremony's output, provisioned and checked (never regenerated here)
+const ceremony = JSON.parse(fs.readFileSync(path.join(root, "spec", "final-ceremony.json"), "utf8"));
 const zkeyFinal = A("build", "ballot_validity_final.zkey");
 const vkeyFile = A("build", "verification_key.json");
-if (force || !fs.existsSync(zkeyFinal)) {
-  await step("zkey_new", () => snarkjs.zKey.newZKey(r1cs, A("ptau", "ppot_0080_18.ptau"), zkey0, quiet));
-  await step("zkey_contribute", () => snarkjs.zKey.contribute(zkey0, zkeyFinal, "local-test-contribution", randomBytes(64).toString("hex"), quiet)); // entropy is never stored
-  const ok = await step("zkey_verify", () => snarkjs.zKey.verifyFromR1cs(r1cs, A("ptau", "ppot_0080_18.ptau"), zkeyFinal, quiet));
+if (sha256(r1cs) !== ceremony.artifacts.r1csSha256) throw new Error("the compiled R1CS is not the one the final ceremony was run on (the circuit changed?): refusing to provision the final zkey");
+const committedZkey = path.join(root, "ceremony", "ballot_validity_final.zkey");
+if (sha256(committedZkey) !== ceremony.artifacts.finalZkeySha256) throw new Error("ceremony/ballot_validity_final.zkey does not match spec/final-ceremony.json");
+if (sha256(path.join(root, "spec", "verification_key.json")) !== ceremony.artifacts.verificationKeySha256) throw new Error("spec/verification_key.json does not match spec/final-ceremony.json");
+if (!fs.existsSync(zkeyFinal) || sha256(zkeyFinal) !== ceremony.artifacts.finalZkeySha256) fs.copyFileSync(committedZkey, zkeyFinal);
+if (!fs.existsSync(vkeyFile) || sha256(vkeyFile) !== ceremony.artifacts.verificationKeySha256) fs.copyFileSync(path.join(root, "spec", "verification_key.json"), vkeyFile);
+if (process.argv.includes("--verify-zkey")) {
+  const ok = await step("zkey_verify", () => snarkjs.zKey.verifyFromR1cs(r1cs, A("ptau", PTAU_FILE), zkeyFinal, quiet));
   if (!ok) throw new Error("zkey verification against the r1cs and the ptau FAILED");
-  fs.rmSync(zkey0);
-  fs.writeFileSync(vkeyFile, JSON.stringify(await snarkjs.zKey.exportVerificationKey(zkeyFinal), null, 2));
 }
 
 // ---------------------------------------------------------------- record what was built
@@ -114,7 +119,7 @@ const record = {
     ...Object.fromEntries(SEMAPHORE_DEPTHS.flatMap((d) => ["wasm", "zkey"].map((e) => [`semaphore-${d}.${e}`, sha256(A("semaphore", `semaphore-${d}.${e}`))]))),
   },
   buildTimingsMs: timings,
-  setupNote: "Phase 1 = Perpetual Powers of Tau (PSE ppot_0080_18). Phase 2 = ONE local contribution with discarded random entropy: TEST ONLY, not a ceremony.",
+  setupNote: "FINAL PROTOTYPE / RESEARCH CEREMONY (spec/final-ceremony.json): phase 1 = Perpetual Powers of Tau (PSE ppot_0080_18); phase 2 = three contributions with discarded OS-CSPRNG entropy + a drand beacon, all on ONE development machine. Not an independently governed production ceremony.",
 };
 fs.writeFileSync(A("build", "build-info.json"), JSON.stringify(record, null, 2));
 console.log(JSON.stringify(record, null, 2));

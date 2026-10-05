@@ -1,0 +1,2 @@
+# binary: no text conversion, no whitespace check
+*.zkey binary

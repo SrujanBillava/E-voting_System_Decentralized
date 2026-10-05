@@ -1,0 +1,85 @@
+{
+  "label": "FINAL PROTOTYPE / RESEARCH CEREMONY",
+  "version": "ballot-validity-prototype-final-1",
+  "trustStatement": "All phase-2 contributions and the beacon were applied on ONE development machine by the same operator. This is NOT an independently governed multi-party ceremony and must not be represented as one. Phase 1 is the public PSE Perpetual Powers of Tau (contribution 80). A production election needs a genuinely independent phase 2.",
+  "completedAt": "2026-10-05T15:56:25.648Z",
+  "circuit": {
+    "name": "ballot_validity",
+    "file": "circuits/ballot_validity.circom",
+    "sourceSha256": "885eb08c06439a41c608c403a3857c75ddf21cf1aa885b3414201921660c844c",
+    "constraints": 49136,
+    "wires": 49105,
+    "publicSignals": 68,
+    "publicOutputs": 0,
+    "privateInputs": 32,
+    "kMax": 16
+  },
+  "toolchain": {
+    "circom": "circom compiler 2.2.3",
+    "snarkjs": "0.7.5",
+    "curve": "bn128",
+    "protocol": "groth16"
+  },
+  "phase1": {
+    "file": "ppot_0080_18.ptau",
+    "sha256": "9693220206afab749e3d88d4ab5fdf5d36120ea102e7e587ccea0e7a5208e711",
+    "bytes": 302083218,
+    "power": 18,
+    "source": "https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/ppot_0080_18.ptau",
+    "note": "Perpetual Powers of Tau (PSE), contribution 80, already phase-2 prepared; the same file privacy-v3 used before this ceremony"
+  },
+  "phase2": {
+    "contributions": 3,
+    "beacon": {
+      "source": "drand quicknet",
+      "chainHash": "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+      "round": 32804133,
+      "signature": "a9f6ee64584c90739feb948312563149c4af9689b264801588c2d267d00c01e782ed38e7cf416b4b44e865e424b1a101",
+      "randomness": "658027384a49748ab4c5713673d7f53fb1c3e292833745cdf42885e683e69b76",
+      "numIterationsExp": 10
+    },
+    "entries": [
+      {
+        "index": 1,
+        "name": "prototype-contribution-1",
+        "contributionHash": "f4eab78bf87cf79245ff14a539b399786611cd4eb93fd6203ba4b16d9d42db86e0949ca8419a906808c9d69d208cfd721caa6ce534d344a7c596844256809e12"
+      },
+      {
+        "index": 2,
+        "name": "prototype-contribution-2",
+        "contributionHash": "cf4062da52115ec89efdac479df374dfaa50862a65b0501edf1f41b8aa1821dc3671179e59476f9d98adb75b770f0993eebedaf7e93f5489ec85eb13a19eabff"
+      },
+      {
+        "index": 3,
+        "name": "prototype-contribution-3",
+        "contributionHash": "c16e43eeb0a91671a3de0d218aa3fd21c62d19af8a0f53664585df2951eea3e34215c0aca4e58f887a1851cd918a167f3ccd908415742d5e41f413f4ba69faf9"
+      },
+      {
+        "index": 4,
+        "name": "final-beacon",
+        "contributionHash": "817ed69973ed91cd2881928804a4a1f06d03d5143eacdd9b004e1d2db601897dac9584c7036796cf92b2338c218c414dea083af28575107f62249e6f4780b1d2"
+      }
+    ],
+    "circuitHash": "ba861ee2042b9a37e141ff42680150424bcd8a7134fd9361d4e5c825deca057ee02cac0951219a4796c3b3f4331a7ebb0ddaac52dfdd018cd6abe9bed18c6c10",
+    "entropy": "each contribution drew 64 bytes from the OS CSPRNG inside its own process (scripts/ceremony-contribute.mjs); never logged, stored or passed on a command line",
+    "verification": "snarkjs zKey.verifyFromR1cs(ballot_validity.r1cs, ptau, final zkey) = true"
+  },
+  "artifacts": {
+    "r1csSha256": "8cf62bd036a2d7c240d98d599eccbfb3f63ee2789fb0d07e13cc6effa67c047a",
+    "witnessWasmSha256": "15c7ce50f6efc22759c24e399bf8ed6f16adef881930da466542608e7f51d3df",
+    "finalZkeySha256": "2edfaa31203e0104c6ac67ce898759ea1e301d82ea133f4e1a96a0bb401d8062",
+    "finalZkeyBytes": 26688096,
+    "verificationKeySha256": "8795bedfacb583cd37cc4a7f19913f0c63839ee16fa2ea9387ff6b79b3335dba",
+    "solidityVerifierSha256": "0c09abf352758ee789a457fb2bbfbd1220f1e3d32cfd97e195612121fec3ba1d",
+    "solidityVerifierCommand": "snarkjs zkey export solidityverifier ballot_validity_final.zkey BallotValidityVerifier.sol"
+  },
+  "browser": {
+    "provingZkeySha256": "2edfaa31203e0104c6ac67ce898759ea1e301d82ea133f4e1a96a0bb401d8062",
+    "witnessWasmSha256": "15c7ce50f6efc22759c24e399bf8ed6f16adef881930da466542608e7f51d3df",
+    "note": "the kiosk bundles exactly these two files and pins these hashes (kiosk-v3/pinned-artifacts.json)"
+  },
+  "replaces": {
+    "previousTestZkeySha256": "8be58c6d8b445ce91167bb7c9f117b1dee5107a6b0de71be5eb49be1017d2816",
+    "previousTestVerificationKeySha256": "6bd3195a26aa7aa1e78e629d9f8d05cb5e4fbf8148500d5d22a4f60c5afad61d"
+  }
+}

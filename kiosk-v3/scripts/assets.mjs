@@ -22,6 +22,14 @@ const sources = {
   "semaphore-20.wasm": path.join(privacy, "semaphore", "semaphore-20.wasm"),
   "semaphore-20.zkey": path.join(privacy, "semaphore", "semaphore-20.zkey"),
 };
+// the pins must also be exactly what the FINAL ceremony manifest says the browser bundles
+const ceremonyFile = path.join(privacy, "..", "spec", "final-ceremony.json");
+if (!fs.existsSync(ceremonyFile)) problems.push("privacy-v3/spec/final-ceremony.json is missing");
+else {
+  const browser = JSON.parse(fs.readFileSync(ceremonyFile, "utf8")).browser;
+  if (browser.provingZkeySha256 !== pins["ballot_validity_final.zkey"]) problems.push("pinned-artifacts.json: the ballot-validity zkey pin is not the final ceremony's");
+  if (browser.witnessWasmSha256 !== pins["ballot_validity.wasm"]) problems.push("pinned-artifacts.json: the ballot-validity wasm pin is not the final ceremony's");
+}
 const buildInfo = fs.existsSync(path.join(privacy, "build", "build-info.json")) ? JSON.parse(fs.readFileSync(path.join(privacy, "build", "build-info.json"), "utf8")).sha256 : null;
 const buildInfoKey = { "ballot_validity.wasm": "wasm", "ballot_validity_final.zkey": "zkey" };
 

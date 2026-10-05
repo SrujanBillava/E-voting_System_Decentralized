@@ -1,11 +1,13 @@
 {
+  "label": "FINAL PROTOTYPE / RESEARCH CEREMONY VERIFIER",
   "contract": "Groth16Verifier",
   "circuit": "privacy-v3/circuits/ballot_validity.circom",
   "publicSignals": 68,
   "snarkjs": "0.7.5",
   "command": "snarkjs zkey export solidityverifier ballot_validity_final.zkey BallotValidityVerifier.sol",
-  "zkeySha256": "8be58c6d8b445ce91167bb7c9f117b1dee5107a6b0de71be5eb49be1017d2816",
-  "verificationKeySha256": "6bd3195a26aa7aa1e78e629d9f8d05cb5e4fbf8148500d5d22a4f60c5afad61d",
-  "solidityVerifierSha256": "2c666dd2a22872add29c489586b7eb9a26bd52474ae83827b6add2995a487bc5",
-  "setup": "TEST ONLY: Perpetual Powers of Tau phase 1 + ONE local phase-2 contribution (not a ceremony). Regenerate after any rebuild of the artifacts."
+  "zkeySha256": "2edfaa31203e0104c6ac67ce898759ea1e301d82ea133f4e1a96a0bb401d8062",
+  "verificationKeySha256": "8795bedfacb583cd37cc4a7f19913f0c63839ee16fa2ea9387ff6b79b3335dba",
+  "solidityVerifierSha256": "0c09abf352758ee789a457fb2bbfbd1220f1e3d32cfd97e195612121fec3ba1d",
+  "ceremony": "privacy-v3/spec/final-ceremony.json",
+  "setup": "FINAL PROTOTYPE / RESEARCH CEREMONY: Perpetual Powers of Tau phase 1 + three phase-2 contributions + a drand beacon, all applied on ONE development machine. NOT an independently governed ceremony: a production election needs a genuinely independent phase 2 and a verifier regenerated from it."
 }

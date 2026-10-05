@@ -37,9 +37,12 @@ src/validity.js                   snarkjs witness / prove / verify for the valid
 src/voter.js                      the voter side: everything secret stays here (castBallot / prepareBallot)
 src/ballotbox.js                  the verifier side: strict parsing, all checks, atomic nullifier consumption, homomorphic tally
 testing/fake-voters.js            TEST/DEMO ONLY: deterministic, label-derived Semaphore identities. src/ must never import this (a test enforces it)
-scripts/build-circuit.mjs         reproducible build (hashes recorded in results/build-info.json)
+scripts/build-circuit.mjs         reproducible build: compiles the circuit and PROVISIONS the final ceremony's zkey (hashes recorded in results/build-info.json)
+scripts/final-ceremony.mjs        the final prototype / research phase-2 ceremony (ceremony-contribute.mjs = one contribution per process; ceremony-pins.mjs = what it trusts)
+ceremony/                         ballot_validity_final.zkey: the FINAL ceremony's proving key (committed: it cannot be rebuilt, its entropy is gone by design)
+spec/final-ceremony.json          machine-readable manifest of that ceremony (hashes, contributions, beacon, versions; no entropy); spec/verification_key.json; spec/old-test-proof.json
 scripts/demo.mjs, bench.mjs       demo and benchmarks
-test/                             157 tests (see results/RESULTS.md for the list)
+test/                             167 tests (see results/RESULTS.md for the list)
 ENCODINGS.md                      the FROZEN scope and ballot-hash encodings, with copyable known-answer vectors
 spec/vectors.json                 the same vectors, machine-readable (verified by test/fast.params.test.mjs)
 results/                          build-info.json, bench*.json, test-report.txt, RESULTS.md
@@ -120,7 +123,7 @@ check that flipping *any one* of the 68 public signals invalidates a proof, and 
 ## Honest limitations (read before building on this)
 
 * **The election key is a single TEST key** generated in memory. Whoever holds it can decrypt every individual ballot. Threshold key generation and *proofs of correct decryption* are the next milestone and are not here.
-* **The Groth16 setup is a test setup**: phase 1 is the real Perpetual Powers of Tau (contribution 80), phase 2 is **one local contribution** (`results/build-info.json`). A production deployment needs a multi-party phase-2 ceremony for the validity circuit. (Semaphore's own artifacts come from its ceremony and are used as downloaded; their SHA-256 is recorded.)
+* **The Groth16 setup is FINAL FOR THIS RESEARCH PROTOTYPE, not a production trusted setup.** The circuit did not change. Phase 1 is the real, public Perpetual Powers of Tau (PSE, contribution 80, `ppot_0080_18`, SHA-256 pinned). Phase 2 is the **final prototype / research ceremony** (`spec/final-ceremony.json`): three contributions, each with fresh OS-CSPRNG entropy in its own process, then a public drand beacon, verified with snarkjs against the R1CS and the ptau. It replaced the earlier single-contribution development setup (a proof from that old setup is refused by the new key: `spec/old-test-proof.json`). **All of it ran on ONE development machine, so it must not be represented as an independently governed production ceremony**: a production election needs a genuinely independent phase 2 (then `smart-contract-v3` `npm run export:verifier`, the kiosk pin, and the end-to-end test again). (Semaphore's own artifacts come from its ceremony and are used as downloaded; their SHA-256 is recorded.)
 * **Voters who sell or are coerced into proving their vote can do so** (they know `r_j`): no receipt-freeness / coercion resistance, as already accepted for V2.
 * **Anonymity is only as good as the group and the network**: the group must be published and auditable (a registrar could add fake members), groups of 1-2 members are not anonymous, and IP/timing metadata is out of scope.
 * **K_MAX = 16 is a hard limit of the compiled circuit.** Real constituencies can have more candidates; cost is linear (~3.4k constraints per slot, see RESULTS). The circuit costs the same for kc = 2 as for kc = 16.

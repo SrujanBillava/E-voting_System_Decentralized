@@ -24,14 +24,14 @@ export const TRUST_NOTICE = [
 
 /** The reminder for the people who build and release this software. Deliberately not alarming: it is a build note, not a voter warning. */
 export const PROTOTYPE_NOTICE = {
-  summary: "Developer notice: test cryptographic setup",
-  body: "The zero-knowledge proving files bundled with this build come from a TEST / PROTOTYPE Groth16 setup. They are fine for development and rehearsal.",
+  summary: "Developer notice: prototype cryptographic setup",
+  body: "The zero-knowledge proving files bundled with this build come from the final prototype / research Groth16 ceremony (privacy-v3/spec/final-ceremony.json). All of its contributions were made on one development machine, so it is not an independently governed production ceremony.",
   steps: [
-    "Generate the final ceremony artifacts",
-    "Export the final BallotValidityVerifier",
+    "Run a genuinely independent phase-2 ceremony for the unchanged circuit",
+    "Export the verifier from its final zkey",
     "Replace the browser proving zkey (and its pinned hash)",
     "Verify provenance and hashes",
     "Rerun the final end-to-end test",
   ],
-  heading: "Before the final V3 freeze:",
+  heading: "Before a production election:",
 };

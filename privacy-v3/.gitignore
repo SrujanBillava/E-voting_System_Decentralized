@@ -6,3 +6,5 @@ artifacts/
 *.wtns
 *.r1cs
 *.sym
+# EXCEPTION: the FINAL PROTOTYPE ceremony's zkey cannot be rebuilt (its entropy is gone by design), so this ONE file is committed; its SHA-256 is pinned in spec/final-ceremony.json
+!ceremony/ballot_validity_final.zkey
