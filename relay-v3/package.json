@@ -1,0 +1,29 @@
+{
+  "name": "votechain-relay-v3",
+  "version": "0.0.1",
+  "private": true,
+  "description": "VoteChain V3 anonymous ballot relayer: a SEPARATE service that simulates, signs, persists and broadcasts anonymous submitBallot transactions. It has no notion of a voter, a login, a cookie or an identity session.",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test --test-concurrency=1 \"test/unit/**/*.test.js\"",
+    "test:chain": "node --test --test-concurrency=1 --test-timeout=900000 \"test/chain/**/*.test.js\"",
+    "sync:abi": "node scripts/sync-abi.js",
+    "check:abi": "node scripts/sync-abi.js --check"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "ethers": "^6.17.0",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "mongoose": "^9.8.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.1"
+  }
+}
