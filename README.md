@@ -1,197 +1,135 @@
-# 🗳️ VoteChain — Decentralized E-Voting System
+# VoteChain
 
-[![Ethereum](https://img.shields.io/badge/Blockchain-Ethereum-3C3C3D?style=for-the-badge&logo=ethereum&logoColor=white)](https://ethereum.org/)
-[![Solidity](https://img.shields.io/badge/Solidity-0.8.28-363636?style=for-the-badge&logo=solidity&logoColor=white)](https://soliditylang.org/)
-[![Hardhat](https://img.shields.io/badge/Hardhat-3.4.4-FFF100?style=for-the-badge&logo=hardhat&logoColor=black)](https://hardhat.org/)
-[![React](https://img.shields.io/badge/React-19.2.5-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![Node.js](https://img.shields.io/badge/Node.js-24.15-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Express.js](https://img.shields.io/badge/Express.js-5.2.1-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://mongodb.com/)
-[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+VoteChain is a privacy-preserving, decentralized electronic voting **research prototype** for authorized polling kiosks (Smart-EVM-style terminals).
 
-> **Status:** VoteChain V2 is under active development. The current codebase uses the V2 backend/contract architecture; some older frontend documentation (and the legacy React screens) may not yet reflect the final implementation.
+* It is **not** remote voting from home. A voter uses an authorized polling terminal.
+* The system identifies the voter's registered constituency and shows **only that constituency's ballot**.
+* Duplicate voting is prevented.
+* In V3, the voter's **identity is separated from the anonymous, encrypted ballot**: the service that knows who you are never sees what you voted, and the service that submits your ballot never learns who you are.
 
-> **Vote from Anywhere. Counted on Blockchain. Verified Privately.**
+> Research prototype. Not audited and not production election infrastructure. See [Limitations](#limitations) and [RELEASE-V3.md](RELEASE-V3.md).
 
-A next-generation, decentralized electronic voting application (DApp) combining a secure **Web2 identity and constituency plane** with an immutable **Ethereum Web3 state ledger**.
+## Project evolution
 
----
+| version | status | where |
+|---|---|---|
+| **V1** | original VoteChain prototype: Node/Express API, MongoDB voter rolls, a Hardhat `Voting` contract and a React app | preserved unchanged on branch [`v1`](https://github.com/SrujanBillava/E-voting_System_Decentralized/tree/v1) |
+| **V2** | frozen | tag `v2.0.0` (commit `216bc74`), development branch `feature/voting-core` |
+| **V3** | current, frozen release | tag `v3.0.0` (commit `94d974a`), branch `feature/privacy-v3` |
 
-## 🌟 Key Features
+**V2** added a production-style flow: login and server-side voter sessions, a face (biometric) check, constituency eligibility, EIP-712 ballot authorization signed by the backend, a backend relayer that submits the vote, one-vote-per-voter enforcement, and receipts. No voter personal data is put on-chain.
+But the candidate choice was **plaintext and public on-chain**, so V2 gave no cryptographic ballot secrecy.
 
-- 🌐 **Vote From Anywhere (Constituency Decoupling)**: A citizen registered in Delhi can walk into any polling booth in Bengaluru or Mumbai. The system maps the ballot strictly to their legal home constituency.
-- ⛓️ **Tamper-Proof Smart Contracts**: Ballots and vote tallies reside directly on the Ethereum Virtual Machine (EVM), eliminating centralized database alteration risks.
-- 🔒 **Zero-Knowledge-Style Anonymous Receipts**: Every voter receives a unique 32-byte `keccak256` receipt hash. Voters can independently verify on-chain that their vote was counted without revealing their candidate choice.
-- 🚫 **Double-Voting Prevention**: Atomic EVM state checking (`usedReceipts` mapping) prevents duplicate voting at the bytecode level.
-- 📊 **Real-Time On-Chain Results**: Live leaderboards and candidate vote distributions computed directly from smart contract storage.
-- 🛡️ **2FA Administrator Portal**: Election administrators authenticate with **RFC 6238 TOTP Two-Factor Authentication** (Google Authenticator / Microsoft Authenticator) and manage voter rolls via paginated CRUD endpoints.
+**V3** keeps the polling-terminal model and adds cryptographic ballot secrecy:
 
----
+* a browser-generated **Semaphore** identity and a constituency-specific anonymous credential, issued in epoch batches;
+* the identity session **ends before voting**;
+* the ballot is an **encrypted one-hot vector** (BabyJubJub exponential ElGamal) with a **Groth16** proof that it is a legal ballot, and a Semaphore proof that the voter is a member of the constituency group;
+* submission through a **separate anonymous relayer**;
+* **homomorphic aggregation** of the encrypted ballots on-chain, and a **dealer-less 2-of-3 DKG** whose trustees publish **Chaum-Pedersen-proven partial decryptions** of the aggregate (threshold recovery, public audit);
+* a **browser kiosk** that does the voter-side work locally, and a public results page that shows a result only after the trustees finalize it.
 
-## 🏗️ System Architecture
+## V3 at a glance
 
 ```
-+-----------------------------------------------------------------------------------+
-|                                  USER / CLIENT                                    |
-|                         (React 19 + Vite + TailwindCSS)                           |
-+----------------------------------------+------------------------------------------+
-                                         |
-               +-------------------------+-------------------------+
-               | (HTTP/REST - Web2)                                | (JSON-RPC - Web3)
-               v                                                   v
-+-----------------------------+                           +-------------------------+
-|    Node.js Express API      |                           |   Ethereum Blockchain   |
-|   (JWT + Bcrypt + TOTP)     |                           |   (Hardhat Node:8545)   |
-+--------------+--------------+                           +------------+------------+
-               |                                                       |
-               v (Mongoose ODM)                                        v (EVM Bytecode)
-+-----------------------------+                           +-------------------------+
-|      MongoDB Database       |                           |   Voting Smart Contract |
-|  - Voter Rolls & Profiles   |                           |  - Candidate Vote Counts|
-|  - Admin & Constituency Data|                           |  - Spent Receipt Hashes |
-+-----------------------------+                           +-------------------------+
+IDENTITY SIDE                                                 (knows who the voter is)
+  Voter login -> Biometric verification -> Eligibility
+    -> Local Semaphore identity -> Public commitment
+    -> Batched credential issuance -> CREDENTIAL_ISSUED -> identity session ends
+==================================== privacy boundary ====================================
+ANONYMOUS SIDE                                                (never learns who the voter is)
+  Candidate selection -> Local one-hot encryption -> Groth16 validity proof
+    -> Semaphore membership proof -> Anonymous relay -> VoteChainV3
+    -> Encrypted aggregate -> 2-of-3 trustee decryption -> Final result
 ```
 
----
+## Repository structure
 
-## 📦 Project Structure
+**V3 (current)**
 
-```text
-evoting-system/
-├── backend-api/                  # Node.js + Express REST API
-│   ├── controllers/              # Voter & Admin business logic
-│   │   ├── admin.js              # Admin 2FA, JWT session & Voter CRUD
-│   │   └── voter.js              # Voter authentication handler
-│   ├── middleware/               # Auth guards (adminProtect, voterProtect)
-│   ├── models/                   # Mongoose schemas (Voter, Admin)
-│   ├── routes/                   # REST routing definitions
-│   ├── utils/                    # JWT signers & Speakeasy 2FA generator
-│   ├── db.js                     # MongoDB connection bootstrap
-│   ├── seed.js                   # Demo voter database seeder
-│   └── server.js                 # Server entry point (Port 5000)
-│
-├── frontend/                     # React 19 + Vite Web Application
-│   ├── src/
-│   │   ├── components/           # UI Components (Voting, Confirm, Verify, Results, Admin)
-│   │   ├── context/              # AuthContext (Voter session state)
-│   │   ├── hooks/                # Custom React hooks (useLogin)
-│   │   ├── pages/                # Pages (Landing, Voter Login, Home, Admin Dashboard/Voters/Candidates)
-│   │   ├── types/                # TypeScript interfaces (Voter)
-│   │   ├── utils/                # Axios API clients & Ethers.js contract bridge
-│   │   ├── App.tsx               # Root routing & layout
-│   │   └── main.tsx              # Application entry point
-│   ├── vite.config.ts            # Vite configuration with Tailwind plugin
-│   └── package.json
-│
-├── smart-contract/               # Hardhat Ethereum Smart Contract Suite
-│   ├── contracts/
-│   │   └── Voting.sol            # Main Voting smart contract
-│   ├── scripts/
-│   │   └── deploy.js             # Deployment & candidate seeding script
-│   ├── ignition/                 # Hardhat Ignition modules & data
-│   │   ├── modules/Voting.ts     # Declarative deployment module
-│   │   └── data/candidates.ts    # 18 Candidates across Bengaluru, Delhi, Mumbai
-│   └── hardhat.config.ts         # Solidity compiler profiles & networks
-│
-├── docs/                         # Architecture, system flow, and commands documentation
-└── README.md
-```
+| path | what it is |
+|---|---|
+| [`privacy-v3/`](privacy-v3/README.md) | V3 cryptography: ballot encryption, the Groth16 ballot-validity circuit, frozen encodings and test vectors, and the final prototype ceremony artifacts |
+| [`smart-contract-v3/`](smart-contract-v3/README.md) | the `VoteChainV3` Solidity contract: Semaphore integration, encrypted tally aggregation, trustee configuration, final-result logic, and the generated Groth16 verifier |
+| [`trustee-v3/`](trustee-v3/README.md) | dealer-less 2-of-3 DKG, trustee shares, Chaum-Pedersen proofs, threshold decryption and baby-step giant-step tally recovery |
+| [`identity-v3/`](identity-v3/README.md) | identity-side service: voter authentication, biometric verification, anonymous credential reservation and epoch batching |
+| [`relay-v3/`](relay-v3/README.md) | separate anonymous transaction relayer and public Semaphore group-data service |
+| [`kiosk-v3/`](kiosk-v3/README.md) | the React/TypeScript browser voting kiosk (local identity, local encryption and proving) and the public results page |
+| [`e2e-v3/`](e2e-v3/README.md) | full-stack end-to-end tests in Node and in real Chrome |
 
----
+**Retained V1/V2 and shared**
 
-## 🚀 Quick Start Guide
+| path | role |
+|---|---|
+| `backend-api/` | the **V2 backend** (Express, MongoDB). **Also used by V3:** `identity-v3` imports its pure biometric modules (`src/biometrics/`) and reads the same voter registry and enrolled-face data, and the V3 tests reuse its face test helpers. It must stay in place. |
+| `frontend/` | the **V2 frontend**. **Also used by V3:** it is the source of the face-model assets (`npm run face:setup` there; research-licensed weights, not committed), which `kiosk-v3` copies; the V3 face step is adapted from its face code. |
+| `smart-contract/` | the **V2 Hardhat/Solidity project** (`Voting.sol`). Retained V2 implementation and historical reference only; nothing in V3 imports it. |
+| `docs/` | V2 design, biometric and flow documents (kept as the V2 record) |
+| `RELEASE-V3.md` | the V3 release document: scope, trust model, privacy boundary, final Groth16 status and the full list of accepted limitations |
 
-### 1. Prerequisites
-- **Node.js** `>=20.0.0`
-- **MongoDB** running locally on `mongodb://127.0.0.1:27017`
-- **Git**
+## Privacy and security properties (what the implementation supports)
 
----
+* No voter personal data is placed on-chain.
+* The Semaphore private identity is generated in the browser; the identity service receives only the **public commitment**.
+* The identity session ends at `CREDENTIAL_ISSUED`, before the anonymous vote; the identity side never receives the ballot nullifier, ciphertexts, candidate, validity proof or ballot transaction.
+* The anonymous relay never receives a voter id, name, email, biometric, identity session or credential record; the kiosk calls it without credentials.
+* The ballot is encrypted locally; a Groth16 proof shows it is a legal one-hot ballot without revealing the choice.
+* An election-wide Semaphore nullifier prevents duplicate anonymous voting.
+* Encrypted ballots aggregate homomorphically; only the **aggregate** is decrypted. One trustee alone cannot decrypt, and 2 of 3 are required for threshold recovery.
+* The chain log is public: anyone can rebuild the aggregate from the `BallotRecorded` events and audit the published partial decryptions and the result.
+* A voter's receipt proves that an encrypted ballot was **recorded**; it does not prove which candidate was selected.
 
-### 2. Smart Contract Setup & Local Blockchain Node
+## Limitations
 
-```bash
-# Navigate to smart-contract directory
-cd smart-contract
+This is a research prototype. The important ones (full list in [RELEASE-V3.md](RELEASE-V3.md)):
 
-# Install dependencies
-npm install
+* The **kiosk is a trusted endpoint** and sees the plaintext candidate selection locally; a malicious or compromised kiosk is an accepted threat.
+* There is **no network anonymity**: a proxy or ISP can still see source addresses and timing.
+* Facial liveness is **advisory / supervised**; real-webcam matching is not covered by automated end-to-end tests.
+* JavaScript **cannot guarantee secure erasure** of secrets from memory.
+* A voter who loses their anonymous credential after issuance **fails closed** (no second credential).
+* **Two colluding trustees can decrypt individual public ciphertexts**; **two malicious trustees can endorse a false official result**, which a public audit detects.
+* The prototype **DKG can be denial-of-service'd** by one malicious trustee.
+* No coercion resistance and no receipt-freeness.
+* The final Groth16 setup is a **research/prototype ceremony** run by one operator on one machine. It is **not an independently administered production trusted setup**.
 
-# Compile Solidity contracts
-npx hardhat compile
+## Technology
 
-# Start local Ethereum node (Terminal 1)
-npx hardhat node
-```
+Solidity 0.8 with Hardhat 3 and OpenZeppelin; Semaphore V4; Circom 2.2 and snarkjs 0.7 (Groth16 on BN254); BabyJubJub (`@zk-kit/baby-jubjub`, circomlib); libsodium (trustee share files and transport); Node.js (22.18+; 24 used for development) with Express, MongoDB (Mongoose), zod and ethers 6; React 19, TypeScript and Vite; face verification in the browser with Human, the TensorFlow.js WebAssembly backend and an InsightFace GhostNet model; Playwright, axe and Chrome for the browser tests. V2 additionally uses JWT, bcrypt and TOTP for its admin and voter sessions.
 
-In a second terminal, deploy the smart contract and seed initial candidates:
+## Verified release
 
-```bash
-cd smart-contract
-node scripts/deploy.js
-```
-*Contract is deployed to: `0x5FbDB2315678afecb367f032d93F642f64180aa3`*
+`v3.0.0` passed a complete end-to-end election in **real Chrome**: **13 voters, 3 candidates, final tally `[7, 4, 2]`**, using the final Groth16 prototype ceremony artifacts, real Semaphore depth-20 proofs and real encrypted ballots, the anonymous relay, the 2-of-3 trustee threshold tally and public results page. The same release also passed privacy-boundary scans of both services' databases, logs and traffic, an integration attack and retry regression, and the per-package suites.
 
----
+## Branches and releases
 
-### 3. Backend API Setup & Database Seeding
+| ref | meaning |
+|---|---|
+| `main` | the latest consolidated repository (V3 plus repository cleanup) |
+| `v1` | the preserved original `main` / V1 state |
+| `feature/voting-core` | the frozen V2 development branch |
+| `feature/privacy-v3` | the V3 development branch, plus the repository-cleanup commit |
+| tag `v2.0.0` | the exact frozen V2 release |
+| tag `v3.0.0` | the exact frozen, tested V3 release snapshot |
 
-```bash
-# Navigate to backend-api directory
-cd ../backend-api
+`main` and `feature/privacy-v3` may contain a later documentation / repository-cleanup commit; **`v3.0.0` remains the exact tested release snapshot** and does not move.
 
-# Install dependencies
-npm install
+## Getting started
 
-# Create backend-api/.env for local development (see backend-api/.env.example)
-npm run init:env
+There is no one-command deployment. The complete system is several processes: a chain node with the deployed contracts, MongoDB, `identity-v3`, `relay-v3`, the served kiosk, and (for a tally) the trustees. [`e2e-v3`](e2e-v3/README.md) starts and exercises all of them (Hardhat node, contracts, both services as separate processes with separate databases, the kiosk in Chrome), and is the best working reference. Each package README has its own setup:
 
-# Create an admin account (prints a TOTP QR once; there is no signup endpoint)
-npm run admin:create
+| package | start here |
+|---|---|
+| `privacy-v3` | `npm ci && npm run build:circuit` (provisions the proving artifacts), then `npm test` |
+| `smart-contract-v3` | needs `privacy-v3`'s artifacts and `trustee-v3` installed; `npm ci && npm test` |
+| `trustee-v3` | `npm ci && npm test`; `npm run demo` runs the example election in memory |
+| `identity-v3` | `npm ci`, `cp .env.example .env`, `npm start` (needs MongoDB and the deployed contract) |
+| `relay-v3` | `npm ci`, `cp .env.example .env`, `npm start` (needs MongoDB and the deployed contract) |
+| `kiosk-v3` | `npm ci && npm run assets && npm run build` (face assets come from `frontend`: `npm run face:setup`), `npm run serve` |
+| `e2e-v3` | set `MONGODB_TEST_URI` and `MONGODB_RELAY_TEST_URI` to disposable test databases, then `npm ci && npm test` and `npm run test:browser` |
 
-# Start backend server (Terminal 2)
-node server.js
-```
+The V2 stack is described in `docs/` and the `backend-api`, `frontend` and `smart-contract` directories.
 
----
+## License
 
-### 4. Frontend Web App Setup
-
-```bash
-# Navigate to frontend directory
-cd ../frontend
-
-# Install dependencies
-npm install
-
-# Create/verify frontend/.env
-VITE_API_URL=http://localhost:5000/api
-VITE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
-
-# Start Vite dev server (Terminal 3)
-npm run dev
-```
-
-Open [`http://localhost:5175`](http://localhost:5175) in your browser.
-
----
-
-## 🔑 Credentials
-
-There are no built-in demo credentials. Admins are created with `npm run admin:create` (password + authenticator app).
-Voters are created by an admin through the admin API. The old V1 demo logins and shared secrets no longer exist.
-
----
-
-## 🔒 Security Architecture
-
-1. **Double-Voting Prevention**: Smart contract maintains `mapping(bytes32 => bool) public usedReceipts`. Submitting a duplicate receipt hash reverts the EVM transaction.
-2. **Ballot Anonymity**: The smart contract stores candidate vote increments and receipt hashes, but **never** receives or stores the voter's identity (`VoterId` or email).
-3. **Password Security**: Bcrypt with 10 salt rounds executed in Mongoose `pre('save')` lifecycle hooks. Password field is marked `select: false`.
-4. **Dual-Token Admin Rotation**: 15-minute Access Token for API header authorization + 7-day `HttpOnly`, `SameSite: lax` Refresh Token cookie.
-5. **Two-Factor Authentication**: RFC 6238 Time-Based One-Time Passwords (TOTP) via Speakeasy.
-
----
-
-## 📜 License
-This project is licensed under the [MIT License](LICENSE).
+MIT. See [LICENSE](LICENSE).

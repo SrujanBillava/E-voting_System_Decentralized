@@ -1,4 +1,5 @@
-# Large / generated / local-only. Rebuild everything with `npm run build:circuit`.
+# Large / generated / local-only: `npm run build:circuit` recreates everything here. Development and intermediate zkeys, ptau files, witnesses and R1CS files are NEVER committed.
+# The ONE intentionally version-controlled zkey is the final prototype ceremony's (see the exception at the end).
 node_modules/
 artifacts/
 *.ptau

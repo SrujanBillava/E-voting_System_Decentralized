@@ -13,6 +13,17 @@ VoteChain V3 is a privacy-preserving voting **prototype** built next to the froz
 | [`kiosk-v3`](kiosk-v3/README.md) | the browser kiosk (local identity, local encryption and proving) and the public results page |
 | [`e2e-v3`](e2e-v3/README.md) | the complete lifecycle in Node and in real Chrome, 13 voters, tally `[7, 4, 2]` |
 
+## Release state
+
+`v3.0.0` is the exact, fully tested release snapshot (commit `94d974a`) and never moves. Later commits on `feature/privacy-v3` and `main` are repository-only (documentation and cleanup: the root README, removed boilerplate); they change no source, test, artifact or cryptographic behaviour.
+
+## Trust model and privacy boundary
+
+* **Identity side** (`identity-v3`): knows who the voter is, that the voter was eligible and passed the face check, and the voter's *public* Semaphore commitment. It never receives a ballot, a nullifier, a ciphertext, the choice or a transaction hash, and its session ends at `CREDENTIAL_ISSUED`.
+* **Anonymous side** (`relay-v3`, the contract): receives one encrypted package and sends it; it never learns a voter id, name, email, biometric, session, credential record or the link between a voter and a commitment. Relay calls from the kiosk carry no credentials.
+* **Kiosk** (`kiosk-v3`): a trusted endpoint. It creates the private Semaphore identity locally, encrypts and proves locally, and holds no wallet or key. The claim is that no single *server-side* component knows both who the voter is and what they chose.
+* **Trustees** (`trustee-v3`): 2-of-3; one trustee alone cannot decrypt. The tally is the decrypted *aggregate*; the contract finalizes a constituency when two trustees endorse the same result, and anyone can recompute and audit it from the public chain log.
+
 ## Groth16 status: FINAL PROTOTYPE / RESEARCH CEREMONY
 
 The ballot-validity circuit is final and unchanged (49,136 constraints, 68 public signals, `K_MAX = 16`). Its proving key is the output of a **final prototype / research ceremony**: the public PSE Perpetual Powers of Tau as
