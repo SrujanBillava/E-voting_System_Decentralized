@@ -25,6 +25,8 @@ cache
 .env
 .env.*
 !.env.example
+# the V3 kiosk's PUBLIC, build-time constants (service origins, chain id, contract address): no secret, and a clean clone must be able to build
+!/kiosk-v3/.env.production
 backend-api/.env
 frontend/.env
 

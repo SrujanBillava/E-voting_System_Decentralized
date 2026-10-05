@@ -128,6 +128,13 @@ const RAW = z.object({
   BATCH_MAX_SIZE: z.string().regex(/^[0-9]{1,3}$/, "must be an integer from 1 to 128").transform(Number).refine((n) => n >= 1 && n <= 128, "must be from 1 to 128").optional(),
   BATCH_INTERVAL_MS: z.string().regex(/^[0-9]{3,6}$/, "must be a number of milliseconds from 100 to 600000").transform(Number).refine((n) => n >= 100 && n <= 600_000, "must be from 100 to 600000").optional(),
 
+  /**
+   * Request budgets PER SOURCE ADDRESS (the identity side may use addresses; the relayer may not). The defaults suit a handful of terminals; a polling booth whose voters
+   * all log in from one kiosk address needs more, so both are settings. The window is fixed (login 15 min, face 1 min).
+   */
+  LOGIN_RATE_LIMIT_MAX: z.string().regex(/^[0-9]{1,6}$/, "must be a positive integer").transform(Number).refine((n) => n >= 1, "must be at least 1").optional(),
+  FACE_RATE_LIMIT_MAX: z.string().regex(/^[0-9]{1,6}$/, "must be a positive integer").transform(Number).refine((n) => n >= 1, "must be at least 1").optional(),
+
   CORS_ORIGINS: z.string().optional(),
 });
 
@@ -215,6 +222,7 @@ export function loadEnv(rawEnv) {
     corsOrigins: Object.freeze(corsOrigins),
     chain: Object.freeze({ chainId: env.CHAIN_ID, contractAddress: env.VOTECHAIN_V3_ADDRESS, electionId: env.ELECTION_ID, confirmations: env.CHAIN_CONFIRMATIONS ?? 1 }),
     batch: Object.freeze({ maxSize: env.BATCH_MAX_SIZE ?? 128, intervalMs: env.BATCH_INTERVAL_MS ?? 2000 }),
+    rateLimits: Object.freeze({ login: Object.freeze({ windowMs: 15 * 60_000, limit: env.LOGIN_RATE_LIMIT_MAX ?? 10 }), face: Object.freeze({ windowMs: 60_000, limit: env.FACE_RATE_LIMIT_MAX ?? 60 }) }),
     issuerAddress: new Wallet(env.ISSUER_PRIVATE_KEY).address,
   };
 

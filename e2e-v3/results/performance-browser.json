@@ -1,0 +1,15 @@
+{
+  "machine": "development machine, real Chrome 154 (headless), 20 logical cores, test face engine",
+  "note": "validity = frozen 68-signal Groth16 circuit; membership = Semaphore depth-20; both run in the browser's WebAssembly with worker threads; the 26 MB proving key is read from the kiosk's own origin",
+  "wholeVoterMs": 9802,
+  "castToReceiptMs": 2444,
+  "phases": {
+    "faceStepMs": 5163,
+    "credentialMs": 1082,
+    "groupVerifyMs": 157,
+    "checkMs": 9,
+    "validityProofMs": 1696,
+    "membershipProofMs": 477,
+    "sendAndConfirmMs": 15
+  }
+}

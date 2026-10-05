@@ -1,0 +1,7 @@
+node_modules
+dist
+dist-*
+public/artifacts
+public/face
+test-results
+playwright-report

@@ -1,0 +1,36 @@
+{
+  "name": "votechain-kiosk-v3",
+  "version": "0.0.1",
+  "private": true,
+  "description": "VoteChain V3 voting kiosk: the trusted endpoint that logs a voter in, creates their Semaphore identity LOCALLY, verifies the public group, encrypts and proves the ballot LOCALLY and submits it anonymously through the relayer. No wallet, no private key, no analytics.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "assets": "node scripts/assets.mjs",
+    "assets:check": "node scripts/assets.mjs --check",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run assets && tsc --noEmit && vite build && node scripts/check-bundle.mjs",
+    "build:e2e": "npm run assets && tsc --noEmit && VITE_E2E_FACE=1 vite build --outDir dist-e2e --emptyOutDir",
+    "build:verify": "npm run assets && node scripts/verify-build.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "serve": "node scripts/serve.mjs",
+    "test": "node --test --test-concurrency=1 --test-timeout=600000 \"test/unit/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@vladmandic/human": "3.3.6",
+    "ethers": "6.17.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "5.8.3",
+    "vite": "^8.0.10"
+  }
+}

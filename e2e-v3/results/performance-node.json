@@ -1,0 +1,163 @@
+{
+  "machine": "development machine, Node 24, snarkjs worker threads",
+  "semaphoreIdentityMs": 16,
+  "groupRebuildMs": {
+    "13": 2,
+    "128": 19,
+    "1000": 140,
+    "5000": 697
+  },
+  "meanOverVoters": {
+    "encryptMs": 96,
+    "validityWitnessMs": 310,
+    "validityProveMs": 1149,
+    "semaphoreProveMs": 280,
+    "preparationMs": 1859,
+    "castToReceiptMs": 1975
+  },
+  "perVoter": [
+    {
+      "voter": 1,
+      "identityMs": 125,
+      "groupSize": 5,
+      "encryptMs": 94,
+      "validityWitnessMs": 308,
+      "validityProveMs": 1392,
+      "semaphoreProveMs": 288,
+      "totalMs": 2104,
+      "castToReceiptMs": 2245
+    },
+    {
+      "voter": 2,
+      "identityMs": 96,
+      "groupSize": 5,
+      "encryptMs": 93,
+      "validityWitnessMs": 302,
+      "validityProveMs": 1215,
+      "semaphoreProveMs": 274,
+      "totalMs": 1907,
+      "castToReceiptMs": 2032
+    },
+    {
+      "voter": 3,
+      "identityMs": 82,
+      "groupSize": 5,
+      "encryptMs": 92,
+      "validityWitnessMs": 319,
+      "validityProveMs": 1107,
+      "semaphoreProveMs": 278,
+      "totalMs": 1824,
+      "castToReceiptMs": 1961
+    },
+    {
+      "voter": 4,
+      "identityMs": 78,
+      "groupSize": 5,
+      "encryptMs": 94,
+      "validityWitnessMs": 301,
+      "validityProveMs": 1146,
+      "semaphoreProveMs": 284,
+      "totalMs": 1849,
+      "castToReceiptMs": 1951
+    },
+    {
+      "voter": 5,
+      "identityMs": 78,
+      "groupSize": 5,
+      "encryptMs": 95,
+      "validityWitnessMs": 302,
+      "validityProveMs": 1081,
+      "semaphoreProveMs": 268,
+      "totalMs": 1769,
+      "castToReceiptMs": 1883
+    },
+    {
+      "voter": 6,
+      "identityMs": 95,
+      "groupSize": 9,
+      "encryptMs": 93,
+      "validityWitnessMs": 307,
+      "validityProveMs": 1135,
+      "semaphoreProveMs": 291,
+      "totalMs": 1852,
+      "castToReceiptMs": 1960
+    },
+    {
+      "voter": 7,
+      "identityMs": 80,
+      "groupSize": 9,
+      "encryptMs": 103,
+      "validityWitnessMs": 315,
+      "validityProveMs": 1133,
+      "semaphoreProveMs": 280,
+      "totalMs": 1859,
+      "castToReceiptMs": 1974
+    },
+    {
+      "voter": 8,
+      "identityMs": 88,
+      "groupSize": 9,
+      "encryptMs": 98,
+      "validityWitnessMs": 323,
+      "validityProveMs": 1134,
+      "semaphoreProveMs": 273,
+      "totalMs": 1852,
+      "castToReceiptMs": 1970
+    },
+    {
+      "voter": 9,
+      "identityMs": 80,
+      "groupSize": 9,
+      "encryptMs": 98,
+      "validityWitnessMs": 310,
+      "validityProveMs": 1116,
+      "semaphoreProveMs": 276,
+      "totalMs": 1822,
+      "castToReceiptMs": 1931
+    },
+    {
+      "voter": 10,
+      "identityMs": 77,
+      "groupSize": 13,
+      "encryptMs": 94,
+      "validityWitnessMs": 306,
+      "validityProveMs": 1094,
+      "semaphoreProveMs": 285,
+      "totalMs": 1803,
+      "castToReceiptMs": 1915
+    },
+    {
+      "voter": 11,
+      "identityMs": 99,
+      "groupSize": 13,
+      "encryptMs": 100,
+      "validityWitnessMs": 307,
+      "validityProveMs": 1129,
+      "semaphoreProveMs": 287,
+      "totalMs": 1847,
+      "castToReceiptMs": 1958
+    },
+    {
+      "voter": 12,
+      "identityMs": 84,
+      "groupSize": 13,
+      "encryptMs": 96,
+      "validityWitnessMs": 316,
+      "validityProveMs": 1115,
+      "semaphoreProveMs": 269,
+      "totalMs": 1820,
+      "castToReceiptMs": 1927
+    },
+    {
+      "voter": 13,
+      "identityMs": 79,
+      "groupSize": 13,
+      "encryptMs": 99,
+      "validityWitnessMs": 315,
+      "validityProveMs": 1140,
+      "semaphoreProveMs": 286,
+      "totalMs": 1865,
+      "castToReceiptMs": 1962
+    }
+  ]
+}

@@ -43,7 +43,8 @@ export function composeIdentity({ config, logger, provider, clock, now = Date.no
     },
   };
 
-  const app = createApp({ config, logger, healthService, voter: { authService, faceService, credentialService }, voterLoginRateLimit: rateLimits.login, faceRateLimit: rateLimits.face });
+  const limits = { ...config.rateLimits, ...rateLimits };
+  const app = createApp({ config, logger, healthService, voter: { authService, faceService, credentialService }, voterLoginRateLimit: limits.login, faceRateLimit: limits.face });
   return { app, chain, batcher, authService, faceService, credentialService, audit, issuerQueue, models: MODELS };
 }
 

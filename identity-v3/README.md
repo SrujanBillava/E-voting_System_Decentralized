@@ -87,7 +87,7 @@ A batch is a persisted state machine, one lease-guarded driver at a time, one is
 
 `loadEnv` is pure and lists every problem by name, never by value. The process holds **only the issuer key** and refuses to start if it finds the relayer key, the
 owner key, trustee keys, `RELAY_*`, or V2's JWT/nullifier secrets. The startup preflight proves the right chain, contract and election, that the key *is* the contract's
-issuer, that it is not the owner or a trustee, and that the frozen constants (30 s epochs, MAX_BATCH 128) hold. `IDENTITY_MONGODB_URI` must not name a relayer database.
+issuer, that it is not the owner or a trustee, and that the frozen constants (30 s epochs, MAX_BATCH 128) hold. `IDENTITY_MONGODB_URI` must not name a relayer database. `LOGIN_RATE_LIMIT_MAX` (default 10 per 15 min per source address) and `FACE_RATE_LIMIT_MAX` (60 per minute) are the only per-address limits; a polling booth whose voters all log in from one kiosk address must raise them.
 Conceptual hostname: `id.votechain.localhost` (loopback only; terminate TLS in front).
 
 ## Running and tests
