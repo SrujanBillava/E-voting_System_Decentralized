@@ -1,0 +1,116 @@
+{
+  "machine": "development machine, real Chrome 154 (headless), 20 logical cores, test face engine",
+  "meanOverVoters": {
+    "faceStepMs": 3354,
+    "groupVerifyMs": 182,
+    "validityProofMs": 1644,
+    "membershipProofMs": 402,
+    "castToReceiptMs": 2874
+  },
+  "perVoter": [
+    {
+      "voter": 1,
+      "faceStepMs": 3942,
+      "groupVerifyMs": 177,
+      "validityProofMs": 1840,
+      "membershipProofMs": 543,
+      "castToReceiptMs": 3936
+    },
+    {
+      "voter": 2,
+      "faceStepMs": 3963,
+      "groupVerifyMs": 208,
+      "validityProofMs": 1619,
+      "membershipProofMs": 392,
+      "castToReceiptMs": 2512
+    },
+    {
+      "voter": 3,
+      "faceStepMs": 3959,
+      "groupVerifyMs": 151,
+      "validityProofMs": 1676,
+      "membershipProofMs": 378,
+      "castToReceiptMs": 2470
+    },
+    {
+      "voter": 4,
+      "faceStepMs": 3959,
+      "groupVerifyMs": 195,
+      "validityProofMs": 1663,
+      "membershipProofMs": 390,
+      "castToReceiptMs": 2545
+    },
+    {
+      "voter": 5,
+      "faceStepMs": 2151,
+      "groupVerifyMs": 225,
+      "validityProofMs": 1655,
+      "membershipProofMs": 373,
+      "castToReceiptMs": 2557
+    },
+    {
+      "voter": 6,
+      "faceStepMs": 5134,
+      "groupVerifyMs": 197,
+      "validityProofMs": 1616,
+      "membershipProofMs": 411,
+      "castToReceiptMs": 4244
+    },
+    {
+      "voter": 7,
+      "faceStepMs": 3966,
+      "groupVerifyMs": 177,
+      "validityProofMs": 1579,
+      "membershipProofMs": 417,
+      "castToReceiptMs": 2513
+    },
+    {
+      "voter": 8,
+      "faceStepMs": 3970,
+      "groupVerifyMs": 214,
+      "validityProofMs": 1639,
+      "membershipProofMs": 403,
+      "castToReceiptMs": 2500
+    },
+    {
+      "voter": 9,
+      "faceStepMs": 2142,
+      "groupVerifyMs": 156,
+      "validityProofMs": 1594,
+      "membershipProofMs": 393,
+      "castToReceiptMs": 2459
+    },
+    {
+      "voter": 10,
+      "faceStepMs": 2170,
+      "groupVerifyMs": 154,
+      "validityProofMs": 1602,
+      "membershipProofMs": 383,
+      "castToReceiptMs": 4232
+    },
+    {
+      "voter": 11,
+      "faceStepMs": 3945,
+      "groupVerifyMs": 159,
+      "validityProofMs": 1605,
+      "membershipProofMs": 373,
+      "castToReceiptMs": 2474
+    },
+    {
+      "voter": 12,
+      "faceStepMs": 2150,
+      "groupVerifyMs": 188,
+      "validityProofMs": 1645,
+      "membershipProofMs": 388,
+      "castToReceiptMs": 2500
+    },
+    {
+      "voter": 13,
+      "faceStepMs": 2154,
+      "groupVerifyMs": 162,
+      "validityProofMs": 1637,
+      "membershipProofMs": 385,
+      "castToReceiptMs": 2424
+    }
+  ]
+}

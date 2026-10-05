@@ -1,0 +1,24 @@
+{
+  "name": "votechain-e2e-v3",
+  "version": "0.0.1",
+  "private": true,
+  "description": "VoteChain V3 full-lifecycle end-to-end harness: the real contract, the real identity and relay services (separate processes), the real kiosk engine with real Groth16 + Semaphore proofs, the real trustees. Only the physical webcam is replaced.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --test-timeout=1800000 \"test/**/*.test.mjs\"",
+    "test:lifecycle": "node --test --test-concurrency=1 --test-timeout=1800000 test/lifecycle.test.mjs",
+    "test:attacks": "node --test --test-concurrency=1 --test-timeout=1800000 test/attacks.test.mjs",
+    "test:browser": "node --test --test-concurrency=1 --test-timeout=1800000 \"browser/**/*.test.mjs\"",
+    "test:all": "npm run test && npm run test:browser"
+  },
+  "dependencies": {
+    "ethers": "6.17.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@playwright/test": "^1.55.0"
+  }
+}
