@@ -17,9 +17,10 @@ It demonstrates, end to end and with real zero-knowledge proofs:
 cd privacy-v3
 npm install                 # exact, pinned dependencies (own package-lock.json)
 npm run build:circuit       # downloads circom 2.2.3 + PSE Perpetual Powers of Tau (2^18) + the official Semaphore 4.13.0 artifacts for depth 20 (frozen)
-                            # and depth 3 (fast tests), SHA-256 pinned; compiles the circuit, runs the Groth16 setup (~1 min). Everything lands in git-ignored artifacts/
+                            # and depth 3 (fast tests), SHA-256 pinned; compiles the circuit and PROVISIONS the committed final ceremony zkey (hash-checked, not regenerated).
+                            # Everything it creates lands in git-ignored artifacts/; the only committed zkey is ceremony/ballot_validity_final.zkey
 npm run demo                # 5 fake Bengaluru voters, votes A,B,A -> A=2 B=1 C=0 (fixed scenario; keys, randomness and proofs are fresh every run)
-npm test                    # 157 tests, real proofs, ~95 s
+npm test                    # 167 tests, real proofs, ~105 s
 npm run bench               # kc = 2, 8, 16 (results/bench.json);  npm run bench:single  = no worker threads
 ```
 
