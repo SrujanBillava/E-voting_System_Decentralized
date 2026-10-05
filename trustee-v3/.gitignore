@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+
+# Everything a demo or benchmark run writes under demo/ (per-trustee encrypted share files, scratch output): never committed.
+# Only this placeholder README is tracked.
+demo/*
+!demo/README.md
+
+# encrypted trustee share files and anything that looks like key material, wherever it ends up
+trustee-*/
+*.share.json
+*.share.enc
+*.key
+*.pem
+.env
+.env.*

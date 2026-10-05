@@ -1,0 +1,63 @@
+{
+  "note": "median timings; one BSGS table per bound (cached across slots); pure JavaScript BabyJubJub (@zk-kit/baby-jubjub 1.0.3), single thread",
+  "node": "v24.20.0",
+  "cpu": "13th Gen Intel(R) Core(TM) i7-13650HX",
+  "rows": [
+    {
+      "ballotCount": 100,
+      "babySteps": 11,
+      "tableBuildMs": 0.6005449999999968,
+      "solveWorstCaseMs": 0.4240520000000032,
+      "solveRandomMs": 0.13850200000000257,
+      "solveAboveBoundMs": 0.7089259999999911
+    },
+    {
+      "ballotCount": 1000,
+      "babySteps": 32,
+      "tableBuildMs": 1.178286,
+      "solveWorstCaseMs": 1.1342449999999928,
+      "solveRandomMs": 0.6676450000000074,
+      "solveAboveBoundMs": 1.6459490000000017
+    },
+    {
+      "ballotCount": 10000,
+      "babySteps": 101,
+      "tableBuildMs": 3.7067749999999933,
+      "solveWorstCaseMs": 3.5643969999999854,
+      "solveRandomMs": 1.7895850000000166,
+      "solveAboveBoundMs": 4.410061999999982
+    },
+    {
+      "ballotCount": 100000,
+      "babySteps": 317,
+      "tableBuildMs": 11.531326000000035,
+      "solveWorstCaseMs": 11.37634300000002,
+      "solveRandomMs": 5.179241999999988,
+      "solveAboveBoundMs": 12.323840000000018
+    },
+    {
+      "ballotCount": 1000000,
+      "babySteps": 1001,
+      "tableBuildMs": 36.934117000000015,
+      "solveWorstCaseMs": 35.80911400000002,
+      "solveRandomMs": 17.846485999999913,
+      "solveAboveBoundMs": 36.6471439999998
+    },
+    {
+      "ballotCount": 10000000,
+      "babySteps": 3163,
+      "tableBuildMs": 116.05647999999997,
+      "solveWorstCaseMs": 113.00726699999996,
+      "solveRandomMs": 54.527132000000165,
+      "solveAboveBoundMs": 115.92847200000051
+    },
+    {
+      "ballotCount": 100000000,
+      "babySteps": 10001,
+      "tableBuildMs": 363.2510650000004,
+      "solveWorstCaseMs": 360.2303210000009,
+      "solveRandomMs": 182.79340299999967,
+      "solveAboveBoundMs": 357.7838640000009
+    }
+  ]
+}

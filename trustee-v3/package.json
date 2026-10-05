@@ -1,0 +1,32 @@
+{
+  "name": "votechain-trustee-v3",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Isolated VoteChain V3 trustee toolkit: dealer-less 2-of-3 DKG, verifiable partial decryption and aggregate tally recovery over BabyJubJub. Not integrated with VoteChain V2 or the V3 contract.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=4 --test-timeout=900000 \"test/*.test.ts\"",
+    "demo": "node scripts/demo.ts",
+    "bench:bsgs": "node scripts/bench-bsgs.ts",
+    "vectors": "node scripts/make-vectors.ts",
+    "vectors:check": "node scripts/make-vectors.ts --check"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.4.0",
+    "@zk-kit/baby-jubjub": "1.0.3",
+    "libsodium-wrappers-sumo": "0.8.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "ethers": "6.17.0",
+    "typescript": "5.8.3"
+  }
+}
