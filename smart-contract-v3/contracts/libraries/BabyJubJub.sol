@@ -12,6 +12,8 @@ library BabyJubJub {
     uint256 internal constant P = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
     uint256 internal constant A = 168700;
     uint256 internal constant D = 168696;
+    /// @dev l, the order of the prime-order subgroup: every scalar of a Chaum-Pedersen proof (e, z) is reduced mod l. Used only for canonical range checks.
+    uint256 internal constant SUBGROUP_ORDER = 2736030358979909402780800718157159386076813972158567259200215660948447373041;
 
     error DegenerateAddition();
 

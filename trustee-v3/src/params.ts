@@ -40,6 +40,8 @@ export const CEREMONY_TAG = tagOf("VOTECHAIN-V3-DKG-CEREMONY-1"); // ceremony id
 export const DKG_TAG = tagOf("VOTECHAIN-V3-DKG-1"); // Schnorr proof of knowledge of a polynomial coefficient
 export const TRANSCRIPT_TAG = tagOf("VOTECHAIN-V3-DKG-TRANSCRIPT-1"); // transcript hash
 export const PDEC_TAG = tagOf("VOTECHAIN-V3-PDEC-1"); // Chaum-Pedersen proof of a partial decryption
+export const PDEC_BUNDLE_TAG = tagOf("VOTECHAIN-V3-PDEC-BUNDLE-1"); // one trustee's partial decryption of one constituency, anchored on-chain
+export const RESULTS_TAG = tagOf("VOTECHAIN-V3-RESULTS-1"); // a constituency's final result
 
 /** The election context every ceremony and every partial decryption is bound to: the same triple privacy-v3 binds ballots and scopes to. */
 export interface ElectionContext {

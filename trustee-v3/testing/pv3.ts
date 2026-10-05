@@ -21,3 +21,12 @@ export function encryptedBallot(H: Point, slotCount: number, choice: number): { 
   for (let j = 0; j < slotCount; j++) coords.push(...ciphertexts[j].c1, ...ciphertexts[j].c2);
   return { coords };
 }
+
+/** Encrypts an ARBITRARY vote vector (it may be invalid, e.g. two-hot or value 5) under H with privacy-v3's exponential ElGamal: the `coords` of a hostile ballot. */
+export function encryptedVector(H: Point, slotCount: number, votes: readonly bigint[]): { coords: bigint[] } {
+  const m = [...votes, ...Array.from({ length: 16 - votes.length }, () => 0n)];
+  const { ciphertexts } = core.ballot.encryptVector({ H: [...H], kc: slotCount, m });
+  const coords: bigint[] = [];
+  for (let j = 0; j < slotCount; j++) coords.push(...ciphertexts[j].c1, ...ciphertexts[j].c2);
+  return { coords };
+}

@@ -6,8 +6,9 @@ import { fileURLToPath } from "node:url";
 import { network } from "hardhat";
 import { ballotHash } from "../../../privacy-v3/src/ballot.js";
 import { semaphoreArtifacts, validityArtifacts } from "../../../privacy-v3/src/artifacts.js";
-import { generateTestKeyPair } from "../../../privacy-v3/src/elgamal.js";
-import { TEST_CONTEXT, constituencyIdOf } from "../../../privacy-v3/src/params.js";
+import { add as pvAdd, generateTestKeyPair, mul as pvMul, randomScalar } from "../../../privacy-v3/src/elgamal.js";
+import { id as keccakOfText } from "ethers";
+import { G, TEST_CONTEXT, constituencyIdOf } from "../../../privacy-v3/src/params.js";
 import { makeGroup } from "../../../privacy-v3/src/semaphore.js";
 import { castBallot } from "../../../privacy-v3/src/voter.js";
 import { shutdownProver } from "../../../privacy-v3/src/validity.js";
@@ -49,7 +50,7 @@ export const cid = constituencyIdOf;
 /** Builds the network, deploys the official Semaphore stack + the generated validity verifier + VoteChainV3 (in Setup). */
 export async function newWorld({ closeGrace = CLOSE_GRACE } = {}) {
   const { ethers, networkHelpers, networkConfig } = await network.create();
-  const [owner, depDeployer, issuer, attacker, relayer, newOwner, stranger] = await ethers.getSigners();
+  const [owner, depDeployer, issuer, attacker, relayer, newOwner, stranger, trustee1, trustee2, trustee3] = await ethers.getSigners();
 
   // dependencies are deployed by account 1 so that account 0's first transaction is VoteChainV3
   const poseidon = await ethers.deployContract("PoseidonT3", [], depDeployer);
@@ -63,15 +64,39 @@ export async function newWorld({ closeGrace = CLOSE_GRACE } = {}) {
   const address = await vc.getAddress();
   if (address.toLowerCase() !== "0x" + ctx.contractAddress.toString(16)) throw new Error(`VoteChainV3 must land at the vector address, got ${address}`);
 
-  return { ethers, networkHelpers, networkConfig, owner, depDeployer, issuer, attacker, relayer, newOwner, stranger, poseidon, semaphoreVerifier, semaphore, validityVerifier, vc, address };
+  return { ethers, networkHelpers, networkConfig, owner, depDeployer, issuer, attacker, relayer, newOwner, stranger, trustee1, trustee2, trustee3, trustees: [trustee1, trustee2, trustee3], poseidon, semaphoreVerifier, semaphore, validityVerifier, vc, address };
 }
 
-/** Setup: issuer, TEST election key, every standard constituency with its candidates. Returns the key pair (test-only secret). */
-export async function configure(world, { only } = {}) {
+/**
+ * Trustee configuration whose verification keys are CONSISTENT with H (vk_j = H + j*C for a random C, so H = 2*vk1 - vk2 and vk3 = 2*vk2 - vk1) without running a ceremony:
+ * the contract checks exactly this relation. The transcript hash is a placeholder. Use `trusteeConfigFromCeremony` for real DKG output.
+ */
+export function fakeTrusteeConfig(world, H) {
+  const C = pvMul(G, randomScalar());
+  const keys = [1n, 2n, 3n].map((j) => pvAdd(H, pvMul(C, j)));
+  return { transcriptHash: keccakOfText("votechain-v3 placeholder trustee transcript"), addresses: world.trustees.map((t) => t.address), keys: keys.map(([x, y]) => [x, y]) };
+}
+
+/** The trustee configuration of a real trustee-v3 ceremony (`run` from trustee-v3/testing/ceremony.ts): its transcript hash and verification keys, trustees = the world's trustee accounts. */
+export function trusteeConfigFromCeremony(world, run) {
+  const verified = run.verified;
+  return { transcriptHash: run.transcript.transcriptHash, addresses: world.trustees.map((t) => t.address), keys: verified.verificationKeys.map(([x, y]) => [x, y]) };
+}
+
+/**
+ * Setup: issuer, election key, the trustee configuration (consistent placeholder by default; `trusteeConfig: false` leaves it unset; or pass a real one),
+ * every standard constituency with its candidates. Returns the key pair (test-only secret, unless `electionKey` is given).
+ */
+export async function configure(world, { only, electionKey, trusteeConfig } = {}) {
   const { vc, issuer } = world;
-  const { secret, publicKey } = generateTestKeyPair();
+  let secret;
+  let publicKey;
+  if (electionKey) publicKey = electionKey;
+  else ({ secret, publicKey } = generateTestKeyPair());
   await (await vc.setIssuer(issuer.address)).wait();
   await (await vc.setElectionKey(publicKey[0], publicKey[1])).wait();
+  const trustees = trusteeConfig === false ? null : (trusteeConfig ?? fakeTrusteeConfig(world, publicKey));
+  if (trustees) await (await vc.configureTrustees(trustees.transcriptHash, trustees.addresses, trustees.keys, publicKey[0], publicKey[1])).wait();
   const ids = {};
   for (const [code, { kc, cap }] of Object.entries(CONSTITUENCIES)) {
     if (only && !only.includes(code)) continue;
@@ -79,7 +104,7 @@ export async function configure(world, { only } = {}) {
     ids[code] = cid(code);
     for (let j = 0; j < kc; j++) await (await vc.addCandidate(ids[code], `${code} candidate ${j}`)).wait();
   }
-  return { secret, H: publicKey, ids };
+  return { secret, H: publicKey, ids, trustees };
 }
 
 /** Five fake, deterministic voters per constituency, and the JS Semaphore group in registration order. */

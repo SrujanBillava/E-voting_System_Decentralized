@@ -5,6 +5,7 @@
 // State machine: new -> announced -> committed -> dealt -> received -> finalized.  ANY validation failure moves the trustee to "aborted" (secrets dropped,
 // every later call refused): there is no complaint or recovery round, the ceremony restarts with fresh randomness.
 import { AggregateCiphertext } from "./aggregate.ts";
+import { VerifiedAggregate } from "./chain-aggregate.ts";
 import { proveDecryptionShare, verifyDecryptionShare } from "./chaum-pedersen.ts";
 import {
   DEFAULT_PARAMS,
@@ -258,13 +259,30 @@ export class Trustee {
    * This trustee's partial decryption of an AGGREGATE: for every candidate slot D = s_j * A with a Chaum-Pedersen proof that D uses the share behind vk_j.
    * The only ciphertext type accepted is AggregateCiphertext; there is no way to ask a trustee about a single ballot (and it refuses aggregates below minBallots).
    * Refusals here do NOT touch the share: a bad request never bricks a finished trustee.
+   *
+   * LOW-LEVEL: this trusts whoever built the aggregate, and the minBallots guard is hygiene only. The production path is partialDecryptVerified.
    */
   partialDecrypt(aggregate: AggregateCiphertext): PartialDecryption {
+    return this.#partial(aggregate, this.minBallots);
+  }
+
+  /**
+   * THE INTEGRATED PATH. Accepts ONLY an aggregate that verifyChainAggregate rebuilt from the complete public BallotRecorded log and found equal to the contract's
+   * stored aggregate: an arbitrary aggregate supplied by another component is refused here. That verification, not minBallots, is the security boundary, so a
+   * constituency with a single valid ballot is tallyable. An empty constituency has nothing to decrypt.
+   */
+  partialDecryptVerified(verified: VerifiedAggregate): PartialDecryption {
+    if (!VerifiedAggregate.isVerified(verified)) throw new InvalidInputError("NOT_A_VERIFIED_AGGREGATE", "an integrated trustee decrypts only an aggregate rebuilt from the chain log and checked against the contract");
+    if (verified.aggregate.ballotCount === 0) throw new InvalidInputError("NOTHING_TO_DECRYPT", "a constituency without ballots has nothing to decrypt");
+    return this.#partial(verified.aggregate, 1);
+  }
+
+  #partial(aggregate: AggregateCiphertext, minimumBallots: number): PartialDecryption {
     if (this.#state === "aborted") throw new CeremonyAbort("CEREMONY_ABORTED", `trustee ${this.index}: the ceremony was aborted (${this.#abortCode})`);
     if (this.#state !== "finalized") throw new CeremonyAbort("CEREMONY_INCOMPLETE", `trustee ${this.index}: the ceremony is not complete (state "${this.#state}"), no decryption`);
     if (!AggregateCiphertext.isAggregate(aggregate)) throw new InvalidInputError("NOT_AN_AGGREGATE", "decryption works on an AggregateCiphertext only");
     if (!sameContext(aggregate.context, this.context)) throw new InvalidInputError("CONTEXT_MISMATCH", "the aggregate belongs to another election");
-    if (aggregate.ballotCount < this.minBallots) throw new InvalidInputError("AGGREGATE_TOO_SMALL", `an aggregate of ${aggregate.ballotCount} ballot(s) would expose individual votes; this trustee needs at least ${this.minBallots}`);
+    if (aggregate.ballotCount < minimumBallots) throw new InvalidInputError("AGGREGATE_TOO_SMALL", `an aggregate of ${aggregate.ballotCount} ballot(s) would expose individual votes; this trustee needs at least ${minimumBallots}`);
     const share = this.#share as bigint;
     const vk = this.#verificationKey as Point;
     const slots = aggregate.slots.map((slot, j) => {

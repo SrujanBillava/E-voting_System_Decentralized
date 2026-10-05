@@ -30,7 +30,7 @@ const codeOf = (file: string): string => code(sources.find(([f]) => f === file)!
 
 describe("hygiene: the module set and entropy separation (static)", () => {
   it("src/ has exactly the expected modules, and no rng, seed or fake-data module", () => {
-    assert.deepEqual(sources.map(([f]) => f).sort(), ["aggregate.ts", "bsgs.ts", "ceremony.ts", "chaum-pedersen.ts", "context.ts", "encoding.ts", "errors.ts", "index.ts", "lagrange.ts", "params.ts", "point.ts", "proof.ts", "scalar.ts", "schnorr.ts", "storage.ts", "threshold.ts", "transport.ts", "trustee.ts"]);
+    assert.deepEqual(sources.map(([f]) => f).sort(), ["aggregate.ts", "audit.ts", "bsgs.ts", "bundle.ts", "ceremony.ts", "chain-aggregate.ts", "chaum-pedersen.ts", "context.ts", "encoding.ts", "errors.ts", "index.ts", "lagrange.ts", "params.ts", "point.ts", "proof.ts", "results.ts", "scalar.ts", "schnorr.ts", "storage.ts", "threshold.ts", "transport.ts", "trustee.ts"]);
   });
 
   it("no file in src/ mentions Math.random, a seed, an rng, or a parameter/option named `random` (there is no way to inject a deterministic source)", () => {

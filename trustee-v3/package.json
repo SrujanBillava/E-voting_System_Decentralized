@@ -9,15 +9,16 @@
   },
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./chain": "./chain/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test --test-concurrency=4 --test-timeout=900000 \"test/*.test.ts\"",
     "demo": "node scripts/demo.ts",
     "bench:bsgs": "node scripts/bench-bsgs.ts",
-    "vectors": "node scripts/make-vectors.ts",
-    "vectors:check": "node scripts/make-vectors.ts --check"
+    "vectors": "node scripts/make-vectors.ts && node scripts/make-integration-vectors.ts",
+    "vectors:check": "node scripts/make-vectors.ts --check && node scripts/make-integration-vectors.ts --check"
   },
   "dependencies": {
     "@noble/hashes": "2.4.0",

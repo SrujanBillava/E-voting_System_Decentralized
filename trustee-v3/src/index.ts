@@ -14,3 +14,13 @@ export type { KdfParams, ShareFile } from "./storage.ts";
 export { DEFAULT_MIN_BALLOTS, DEFAULT_THRESHOLD, DEFAULT_TRUSTEES, MAX_BALLOT_COUNT, MAX_SLOTS, SUBGROUP_ORDER, TEST_CONTEXT } from "./params.ts";
 export type { ElectionContext, Point } from "./params.ts";
 export { CeremonyAbort, InvalidInputError, ToolkitError, VerificationError } from "./errors.ts";
+
+// ---- tally integration: the chain-derived aggregate, the frozen bundle and results encodings, and the public auditor (pure: no network, no secret)
+export { VerifiedAggregate, verifyChainAggregate } from "./chain-aggregate.ts";
+export type { BallotLogEntry, ContractConstituencyState } from "./chain-aggregate.ts";
+export { BUNDLE_WORDS, WORDS_PER_SLOT, activeWordsOf, bundleFromPartial, bundleHash, padBundle, partialFromBundle } from "./bundle.ts";
+export type { BundleHeader } from "./bundle.ts";
+export { assertValidResults, padTotals, resultsHash } from "./results.ts";
+export type { ResultsHeader } from "./results.ts";
+export { auditConstituency, verifyFinalResult, verifyPinnedTranscript } from "./audit.ts";
+export type { AuditInput, AuditResult, InvalidPublication, PartialPublication, PinnedConfiguration } from "./audit.ts";

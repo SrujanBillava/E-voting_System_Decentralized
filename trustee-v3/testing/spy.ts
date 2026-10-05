@@ -23,6 +23,25 @@ export function captureRandomness<T>(fn: () => T): { result: T; draws: Buffer[] 
   }
 }
 
+/** The same for an async flow (a whole chain interaction): every draw made while `fn` runs is recorded. Do not run two captures at once. */
+export async function captureRandomnessAsync<T>(fn: () => Promise<T>): Promise<{ result: T; draws: Buffer[] }> {
+  const mutable = crypto as unknown as { randomBytes: (size: number) => Buffer };
+  const original = mutable.randomBytes;
+  const draws: Buffer[] = [];
+  mutable.randomBytes = (size: number): Buffer => {
+    const bytes = original.call(crypto, size);
+    draws.push(Buffer.from(bytes));
+    return bytes;
+  };
+  syncBuiltinESMExports();
+  try {
+    return { result: await fn(), draws };
+  } finally {
+    mutable.randomBytes = original;
+    syncBuiltinESMExports();
+  }
+}
+
 /** every scalar the toolkit drew through randomScalar(): 48 bytes -> (int mod (l-1)) + 1 */
 export const scalarsOf = (draws: Buffer[]): bigint[] => draws.filter((d) => d.length === 48).map((d) => (BigInt("0x" + d.toString("hex")) % (SUBGROUP_ORDER - 1n)) + 1n);
 

@@ -101,7 +101,7 @@ describe("DKG: a dealer-less 2-of-3 ceremony", () => {
       assert.deepEqual(Object.keys(t.toJSON()).sort(), ["index", "state", "verificationKey"]);
     }
     const methods = Object.getOwnPropertyNames(Trustee.prototype).sort();
-    assert.deepEqual(methods, ["announce", "commit", "constructor", "deal", "exportEncryptedShare", "finalize", "partialDecrypt", "receive", "state", "toJSON"]);
+    assert.deepEqual(methods, ["announce", "commit", "constructor", "deal", "exportEncryptedShare", "finalize", "partialDecrypt", "partialDecryptVerified", "receive", "state", "toJSON"]);
   });
 
   it("every message is plain JSON (no bigint, no undefined, no class instance): it would survive a network unchanged", () => {
