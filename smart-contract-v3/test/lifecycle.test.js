@@ -6,7 +6,7 @@ import { generateTestKeyPair } from "../../privacy-v3/src/elgamal.js";
 import { validatePublicKey } from "../../privacy-v3/src/elgamal.js";
 import { FIELD_PRIME as P } from "../../privacy-v3/src/params.js";
 import { torsionOrder, torsionSubgroup } from "../../privacy-v3/test/curve.mjs";
-import { CLOSE_GRACE, ELECTION_ID, EPOCH, PROJECT, Phase, cid, configure, newWorld, register, votersOf } from "./helpers/world.js";
+import { CLOSE_GRACE, ELECTION_ID, EPOCH, PROJECT, Phase, cid, configure, fakeTrusteeConfig, newWorld, register, votersOf } from "./helpers/world.js";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 const dummyArgs = (code = "KA-BLR") => ({
@@ -167,6 +167,9 @@ describe("VoteChainV3: opening the election", () => {
     await expect(w.vc.openElection()).to.be.revertedWithCustomError(w.vc, "ElectionKeyNotSet");
     const { publicKey } = generateTestKeyPair();
     await w.vc.setElectionKey(publicKey[0], publicKey[1]);
+    await expect(w.vc.openElection()).to.be.revertedWithCustomError(w.vc, "TrusteesNotConfigured");
+    const trustees = fakeTrusteeConfig(w, publicKey);
+    await w.vc.configureTrustees(trustees.transcriptHash, trustees.addresses, trustees.keys, publicKey[0], publicKey[1]);
     await expect(w.vc.openElection()).to.be.revertedWithCustomError(w.vc, "NothingToOpen");
     await w.vc.addConstituency("A-ONE", "One", 10n);
     await w.vc.addConstituency("B-TWO", "Two", 10n);
@@ -392,15 +395,18 @@ describe("VoteChainV3 + Semaphore: VoteChainV3 is the ONLY group admin", () => {
   });
 });
 
-describe("VoteChainV3: what this phase does NOT contain", () => {
+describe("VoteChainV3: what the contract does NOT contain", () => {
   const strip = (file) => fs.readFileSync(path.join(PROJECT, "contracts", file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
-  it("there is no decryption, tally-publication or final-result entry point in the ABI, and no state that could hold a result", async () => {
+  it("the contract never decrypts and has no individual-ballot API: the only names that mention decryption anchor a trustee's already-computed partial decryption, and a result exists only once finalized", async () => {
     const w = await newWorld();
-    const names = w.vc.interface.fragments.filter((f) => f.type === "function" || f.type === "event").map((f) => f.name.toLowerCase());
-    for (const name of names) expect(name, name).to.not.match(/decrypt|result|tally|finali[sz]|reveal|publish|winner|trustee|share/);
-    // what an auditor can read: ciphertext aggregates and counts, nothing decrypted
-    for (const read of ["aggregateOf", "totalBallots", "getConstituency", "nullifierUsed", "commitmentRegistered"]) expect(names).to.include(read.toLowerCase());
+    const names = w.vc.interface.fragments.filter((f) => f.type === "function" || f.type === "event").map((f) => f.name);
+    expect(names.filter((n) => /decrypt/i.test(n)).sort()).to.deep.equal(["PartialDecryptionPublished", "publishPartialDecryption"]);
+    for (const name of names) expect(name, name).to.not.match(/individual|ballotDecrypt|decryptBallot|decryptVote|reveal|winner|secret|privateKey|plaintext/i);
+    // the only ways to a result: two trustee endorsements, then the finalized read
+    expect(names).to.include.members(["endorseResult", "ResultEndorsed", "ConstituencyFinalized", "finalResult", "isFinalized"]);
+    // what anybody can read before the tally: ciphertext aggregates and counts, nothing decrypted
+    for (const read of ["aggregateOf", "totalBallots", "getConstituency", "nullifierUsed", "commitmentRegistered"]) expect(names).to.include(read);
   });
 
   it("the encrypted aggregate is built by point ADDITION only: no BabyJubJub scalar multiplication exists on-chain, and the only precompile the contract layer calls is MODEXP", () => {

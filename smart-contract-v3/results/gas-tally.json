@@ -1,0 +1,23 @@
+{
+  "note": "gas of the NEW contract operations, measured on the local Hardhat network (hardfork osaka); published bundles and endorsements are for single-ballot constituencies except K_c = 3 (13 ballots)",
+  "deployedContractBytes": 17415,
+  "configureTrustees": 314814,
+  "publishPartialDecryption": {
+    "kc3": 96090,
+    "kc8": 116717,
+    "kc2": 91996,
+    "kc16": 149688
+  },
+  "endorseResultFirst": {
+    "kc3": 73649,
+    "kc8": 74328,
+    "kc2": 73470,
+    "kc16": 75472
+  },
+  "endorseResultSecondAndFinalize": {
+    "kc3": 142348,
+    "kc8": 146304,
+    "kc2": 141513,
+    "kc16": 153213
+  }
+}

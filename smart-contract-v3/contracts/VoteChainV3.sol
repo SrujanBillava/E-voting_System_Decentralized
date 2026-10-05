@@ -24,7 +24,10 @@ import {V3Encodings} from "./libraries/V3Encodings.sol";
  *    and emits every encrypted ballot so anybody can replay the sum. It never decrypts anything and holds no secret.
  *  - It does NOT verify that H lies in the prime-order subgroup (that needs a scalar multiplication, which is deliberately not implemented
  *    on-chain): the election-key ceremony must do that off-chain (privacy-v3 validatePublicKey) before setElectionKey.
- *  - Decryption, trustees and final results are NOT part of this phase.
+ *  - Tally (after Closed): three pinned trustees (threshold 2) anchor their partial decryptions here and endorse the result. The contract NEVER decrypts and does
+ *    NOT verify Chaum-Pedersen proofs: public auditors do that off-chain (trustee-v3). It pins the trustee configuration, enforces who may publish and endorse and
+ *    when, enforces uniqueness, and finalizes a constituency once two DISTINCT trustees endorse the SAME results hash. Two malicious trustees can therefore still
+ *    finalize a false result: an ACCEPTED prototype limitation, because anybody can recompute the aggregate from the public log and verify the published partials.
  *
  * Frozen encodings (privacy-v3/ENCODINGS.md, vectors in privacy-v3/spec/vectors.json): see V3Encodings.
  */
@@ -89,6 +92,9 @@ contract VoteChainV3 is Ownable2Step {
     /// @notice Most commitments per registerCommitmentBatch call. Measured (test/gas.test.js, local Osaka network): 128 commitments cost about 10.1M gas,
     ///         60% of the 2^24 per-transaction gas cap of Osaka (EIP-7825) and well inside a 30M block, with room for a deep tree (about 11M at depth 20).
     uint256 public constant MAX_BATCH = 128;
+    /// @notice The frozen trustee set: exactly three trustees with fixed indices 1, 2, 3 and threshold 2.
+    uint256 public constant TRUSTEE_COUNT = 3;
+    uint256 public constant TRUSTEE_THRESHOLD = 2;
 
     // -------------------------------------------------------------- immutables
 
@@ -120,6 +126,26 @@ contract VoteChainV3 is Ownable2Step {
     mapping(uint256 nullifier => bool) private _nullifierUsed;
     uint256 public totalBallots;
 
+    // ---- trustees (pinned in Setup, immutable once Open) and the tally
+    bool public trusteesConfigured;
+    /// @notice Hash of the public key-ceremony transcript (trustee-v3 transcriptHash) that every partial decryption and every result is bound to.
+    bytes32 public trusteeTranscriptHash;
+    address[3] private _trusteeAddresses; // index 0..2 = trustee 1..3
+    uint256[2][3] private _trusteeKeys; // verification keys vk_1..vk_3 as (x, y)
+    /// @dev bundle hash of each trustee's partial decryption, per constituency (0 = not published)
+    mapping(bytes32 constituencyId => bytes32[3]) private _partialHashes;
+    /// @dev results hash each trustee endorsed, per constituency (0 = none)
+    mapping(bytes32 constituencyId => bytes32[3]) private _endorsements;
+
+    struct FinalResult {
+        bytes32 resultsHash;
+        uint256 packedLow; // totals of slots 0..7, 32 bits each (a total never exceeds 2^20)
+        uint256 packedHigh; // totals of slots 8..15
+        bool finalized;
+    }
+
+    mapping(bytes32 constituencyId => FinalResult) private _finalResults;
+
     // ----------------------------------------------------------------- events
 
     event ConstituencyAdded(bytes32 indexed constituencyId, string code, string name, uint256 groupId, uint256 registeredVoters);
@@ -140,6 +166,13 @@ contract VoteChainV3 is Ownable2Step {
     ///      ballot hash they were bound to. No voter identity, no commitment mapping, no plaintext vote, no randomness.
     event BallotRecorded(bytes32 indexed constituencyId, uint256 indexed nullifier, uint256 indexed ballotIndex, uint256 ballotHash, uint256[] coords);
     event ElectionClosed(uint256 totalBallots);
+    event TrusteesConfigured(bytes32 transcriptHash, address[3] trustees, uint256[2][3] verificationKeys, uint256 electionKeyX, uint256 electionKeyY);
+    /// @dev Everything an auditor needs to rebuild and verify the bundle: the ACTIVE slots' words (D.x, D.y, e, z per slot); padded slots are zero by rule.
+    event PartialDecryptionPublished(
+        bytes32 indexed constituencyId, uint256 indexed trusteeIndex, bytes32 bundleHash, uint256 ballotCount, uint256 candidateCount, uint256[] words
+    );
+    event ResultEndorsed(bytes32 indexed constituencyId, uint256 indexed trusteeIndex, bytes32 resultsHash);
+    event ConstituencyFinalized(bytes32 indexed constituencyId, bytes32 resultsHash, uint256 ballotCount, uint256[] totals);
 
     // ----------------------------------------------------------------- errors
 
@@ -177,6 +210,28 @@ contract VoteChainV3 is Ownable2Step {
     error InvalidMembershipProof();
     error InvalidValidityProof();
     error RenounceDisabled();
+    error TrusteesNotConfigured();
+    error ZeroTranscriptHash();
+    error InvalidTrusteeAddress(uint256 trusteeIndex);
+    error DuplicateTrusteeAddress();
+    error InvalidVerificationKey(uint256 trusteeIndex);
+    error ElectionKeyMismatch();
+    error InconsistentTrusteeKeys();
+    error DegenerateTrusteeKeys();
+    error InvalidTrusteeIndex(uint256 trusteeIndex);
+    error NotTrustee(address caller, uint256 trusteeIndex);
+    error NothingToDecrypt(bytes32 constituencyId);
+    error AlreadyPublished(bytes32 constituencyId, uint256 trusteeIndex);
+    error InvalidPartialPoint(uint256 slot);
+    error InvalidProofScalar(uint256 slot);
+    error NonCanonicalPadding(uint256 slot);
+    error NotPublished(bytes32 constituencyId, uint256 trusteeIndex);
+    error AlreadyEndorsed(bytes32 constituencyId, uint256 trusteeIndex);
+    error AlreadyFinalized(bytes32 constituencyId);
+    error TotalAboveBallotCount(uint256 slot);
+    error PaddedTotalNotZero(uint256 slot);
+    error TotalsDoNotSumToBallots(uint256 sum, uint256 expected);
+    error NotFinalized(bytes32 constituencyId);
 
     // ------------------------------------------------------------- modifiers
 
@@ -227,7 +282,63 @@ contract VoteChainV3 is Ownable2Step {
         electionKeyX = x;
         electionKeyY = y;
         electionKeySet = true;
+        trusteesConfigured = false; // a pinned configuration is only valid for the key it was pinned with: changing H invalidates it
         emit ElectionKeySet(x, y);
+    }
+
+    /**
+     * @notice Pins the frozen trustee configuration: exactly 3 trustees (indices 1, 2, 3, threshold 2), the hash of the public key-ceremony transcript, the three
+     *         verification keys, and the election key H (which MUST be the key already set for ballot encryption). Immutable once Open (Setup only).
+     *         Checks: three distinct non-zero addresses; a non-zero transcript hash; every vk a canonical point on the curve with x != 0 (not the identity, not the
+     *         order-2 point); and that the three vk interpolate to H (H = 2*vk1 - vk2, vk3 = 2*vk2 - vk1: point ADDITIONS only). Whether a vk lies in the prime-order
+     *         subgroup is NOT checkable without a scalar multiplication and stays the key ceremony's responsibility, as does the match between the transcript and
+     *         these values, which an auditor verifies off-chain.
+     */
+    function configureTrustees(
+        bytes32 transcriptHash,
+        address[3] calldata trustees,
+        uint256[2][3] calldata verificationKeys,
+        uint256 electionKeyX_,
+        uint256 electionKeyY_
+    ) external onlyOwner inPhase(Phase.Setup) {
+        if (!electionKeySet) revert ElectionKeyNotSet();
+        if (electionKeyX_ != electionKeyX || electionKeyY_ != electionKeyY) revert ElectionKeyMismatch();
+        if (transcriptHash == bytes32(0)) revert ZeroTranscriptHash();
+        for (uint256 i = 0; i < TRUSTEE_COUNT; ++i) {
+            address trustee = trustees[i];
+            if (trustee == address(0)) revert InvalidTrusteeAddress(i + 1);
+            for (uint256 j = 0; j < i; ++j) {
+                if (trustees[j] == trustee) revert DuplicateTrusteeAddress();
+            }
+            if (verificationKeys[i][0] == 0 || !BabyJubJub.isOnCurve(verificationKeys[i][0], verificationKeys[i][1])) revert InvalidVerificationKey(i + 1);
+        }
+        _requireConsistentTrusteeKeys(verificationKeys);
+        for (uint256 i = 0; i < TRUSTEE_COUNT; ++i) {
+            _trusteeAddresses[i] = trustees[i];
+            _trusteeKeys[i][0] = verificationKeys[i][0];
+            _trusteeKeys[i][1] = verificationKeys[i][1];
+        }
+        trusteeTranscriptHash = transcriptHash;
+        trusteesConfigured = true;
+        emit TrusteesConfigured(transcriptHash, trustees, verificationKeys, electionKeyX, electionKeyY);
+    }
+
+    /// @dev A degree-1 sharing polynomial gives vk_j = H + j*C, hence H = 2*vk1 - vk2 and vk3 = 2*vk2 - vk1. Checked with point additions only. A configuration
+    ///      whose keys do not interpolate to H could never produce a decryption, and it could not be repaired once ballots exist.
+    function _requireConsistentTrusteeKeys(uint256[2][3] calldata vk) private view {
+        // vk1 == vk2 would be a CONSTANT sharing polynomial (C = identity): every trustee would hold the whole secret and one alone could decrypt
+        if (vk[0][0] == vk[1][0] && vk[0][1] == vk[1][1]) revert DegenerateTrusteeKeys();
+        (uint256 x, uint256 y) = BabyJubJub.add(vk[0][0], vk[0][1], vk[0][0], vk[0][1]); // 2*vk1
+        (x, y) = BabyJubJub.add(x, y, _negX(vk[1][0]), vk[1][1]); // 2*vk1 - vk2
+        if (x != electionKeyX || y != electionKeyY) revert InconsistentTrusteeKeys();
+        (x, y) = BabyJubJub.add(vk[1][0], vk[1][1], vk[1][0], vk[1][1]); // 2*vk2
+        (x, y) = BabyJubJub.add(x, y, _negX(vk[0][0]), vk[0][1]); // 2*vk2 - vk1
+        if (x != vk[2][0] || y != vk[2][1]) revert InconsistentTrusteeKeys();
+    }
+
+    /// @dev The negation of a twisted Edwards point (x, y) is (-x, y).
+    function _negX(uint256 x) private pure returns (uint256) {
+        return x == 0 ? 0 : BabyJubJub.P - x;
     }
 
     /// @notice Adds a constituency (id = keccak256(bytes(code)), as in V2), creates its Semaphore group with THIS contract as admin, and fixes its issuance cap.
@@ -277,10 +388,11 @@ contract VoteChainV3 is Ownable2Step {
         emit CandidateAdded(constituencyId, slot, name);
     }
 
-    /// @notice Setup -> Open. Needs an issuer, the election key, at least one constituency and at least one candidate in every constituency.
+    /// @notice Setup -> Open. Needs an issuer, the election key, the pinned trustee configuration, at least one constituency and at least one candidate in every constituency.
     function openElection() external onlyOwner inPhase(Phase.Setup) {
         if (issuer == address(0)) revert IssuerNotSet();
         if (!electionKeySet) revert ElectionKeyNotSet();
+        if (!trusteesConfigured) revert TrusteesNotConfigured();
         uint256 n = _constituencyIds.length;
         if (n == 0) revert NothingToOpen();
         if (_constituenciesWithoutCandidates != 0) revert ConstituencyHasNoCandidate(_constituenciesWithoutCandidates);
@@ -342,6 +454,114 @@ contract VoteChainV3 is Ownable2Step {
         if (block.timestamp < earliest) revert GraceNotElapsed(earliest);
         phase = Phase.Closed;
         emit ElectionClosed(totalBallots);
+    }
+
+    // ------------------------------------------------------------- tally (Closed)
+
+    /**
+     * @notice A trustee anchors its partial decryption of a constituency's encrypted aggregate. Closed only; the caller must be the address pinned for `trusteeIndex`;
+     *         one publication per trustee per constituency, never replaced. `bundle` is the fixed 64-word package (for slot 0..15: D.x, D.y, e, z) with four ZERO words
+     *         in every padded slot (index >= the constituency's candidate count). The contract computes the bundle hash itself, stores only the hash, and emits the
+     *         active words so that anybody can rebuild the bundle and verify the Chaum-Pedersen proofs off-chain. The proofs are NOT verified here.
+     */
+    function publishPartialDecryption(bytes32 constituencyId, uint256 trusteeIndex, uint256[64] calldata bundle) external inPhase(Phase.Closed) {
+        _requireTrustee(trusteeIndex);
+        Constituency storage c = _constituencies[constituencyId];
+        if (!c.exists) revert UnknownConstituency(constituencyId);
+        uint256 ballots = c.ballots;
+        if (ballots == 0) revert NothingToDecrypt(constituencyId);
+        if (_partialHashes[constituencyId][trusteeIndex - 1] != bytes32(0)) revert AlreadyPublished(constituencyId, trusteeIndex);
+        uint256 kc = c.candidateCount;
+        _checkBundle(bundle, kc);
+        bytes32 hash = V3Encodings.partialBundleHash(
+            V3Encodings.BundleHeader(block.chainid, address(this), ELECTION_ID, trusteeTranscriptHash, trusteeIndex, constituencyId, ballots, kc), bundle
+        );
+        _partialHashes[constituencyId][trusteeIndex - 1] = hash;
+        uint256[] memory words = new uint256[](kc * COORDS_PER_SLOT);
+        for (uint256 i = 0; i < words.length; ++i) words[i] = bundle[i];
+        emit PartialDecryptionPublished(constituencyId, trusteeIndex, hash, ballots, kc, words);
+    }
+
+    /**
+     * @notice A trustee endorses ONE results hash for a constituency, after it has published its own partial decryption (a constituency without ballots needs none:
+     *         its only valid result is all zeros). `totals` is the uint256[16] vote total per slot: each active total <= the ballot count, every padded total zero,
+     *         the active totals summing to exactly the ballot count. When TWO DISTINCT trustees have endorsed the SAME results hash, the constituency is finalized,
+     *         immutably. Trustees who disagree finalize nothing; nobody can change an endorsement; there is no tie-break.
+     */
+    function endorseResult(bytes32 constituencyId, uint256 trusteeIndex, uint256[16] calldata totals) external inPhase(Phase.Closed) {
+        _requireTrustee(trusteeIndex);
+        Constituency storage c = _constituencies[constituencyId];
+        if (!c.exists) revert UnknownConstituency(constituencyId);
+        FinalResult storage result = _finalResults[constituencyId];
+        if (result.finalized) revert AlreadyFinalized(constituencyId);
+        bytes32[3] storage endorsements = _endorsements[constituencyId];
+        if (endorsements[trusteeIndex - 1] != bytes32(0)) revert AlreadyEndorsed(constituencyId, trusteeIndex);
+        uint256 ballots = c.ballots;
+        if (ballots != 0 && _partialHashes[constituencyId][trusteeIndex - 1] == bytes32(0)) revert NotPublished(constituencyId, trusteeIndex);
+        uint256 kc = c.candidateCount;
+        _checkTotals(totals, kc, ballots);
+        bytes32 hash = V3Encodings.resultsHash(block.chainid, address(this), ELECTION_ID, trusteeTranscriptHash, constituencyId, ballots, kc, totals);
+        endorsements[trusteeIndex - 1] = hash;
+        emit ResultEndorsed(constituencyId, trusteeIndex, hash);
+        for (uint256 other = 0; other < TRUSTEE_COUNT; ++other) {
+            if (other != trusteeIndex - 1 && endorsements[other] == hash) {
+                _finalize(constituencyId, result, hash, totals, kc, ballots);
+                return;
+            }
+        }
+    }
+
+    function _finalize(bytes32 constituencyId, FinalResult storage result, bytes32 hash, uint256[16] calldata totals, uint256 kc, uint256 ballots) private {
+        uint256 low;
+        uint256 high;
+        uint256[] memory active = new uint256[](kc);
+        for (uint256 j = 0; j < kc; ++j) {
+            uint256 total = totals[j];
+            active[j] = total;
+            if (j < 8) low |= total << (32 * j);
+            else high |= total << (32 * (j - 8));
+        }
+        result.resultsHash = hash;
+        result.packedLow = low;
+        result.packedHigh = high;
+        result.finalized = true;
+        emit ConstituencyFinalized(constituencyId, hash, ballots, active);
+    }
+
+    /// @dev The caller must be the trustee pinned for `trusteeIndex` (1..3).
+    function _requireTrustee(uint256 trusteeIndex) private view {
+        if (trusteeIndex == 0 || trusteeIndex > TRUSTEE_COUNT) revert InvalidTrusteeIndex(trusteeIndex);
+        if (msg.sender != _trusteeAddresses[trusteeIndex - 1]) revert NotTrustee(msg.sender, trusteeIndex);
+    }
+
+    /// @dev Shape only (the proofs are verified off-chain): an active slot has a canonical on-curve D and canonical non-zero proof scalars (e, z < l); every padded
+    ///      slot is four zero words, the one canonical padding.
+    function _checkBundle(uint256[64] calldata bundle, uint256 kc) private pure {
+        for (uint256 j = 0; j < K_MAX; ++j) {
+            uint256 o = j * COORDS_PER_SLOT;
+            if (j < kc) {
+                if (!BabyJubJub.isOnCurve(bundle[o], bundle[o + 1])) revert InvalidPartialPoint(j);
+                uint256 e = bundle[o + 2];
+                uint256 z = bundle[o + 3];
+                if (e == 0 || e >= BabyJubJub.SUBGROUP_ORDER || z == 0 || z >= BabyJubJub.SUBGROUP_ORDER) revert InvalidProofScalar(j);
+            } else if ((bundle[o] | bundle[o + 1] | bundle[o + 2] | bundle[o + 3]) != 0) {
+                revert NonCanonicalPadding(j);
+            }
+        }
+    }
+
+    /// @dev exactly K_c active totals each <= the ballot count, zero in every padded slot, summing to the ballot count
+    function _checkTotals(uint256[16] calldata totals, uint256 kc, uint256 ballots) private pure {
+        uint256 sum;
+        for (uint256 j = 0; j < K_MAX; ++j) {
+            if (j < kc) {
+                if (totals[j] > ballots) revert TotalAboveBallotCount(j);
+                sum += totals[j];
+            } else if (totals[j] != 0) {
+                revert PaddedTotalNotZero(j);
+            }
+        }
+        if (sum != ballots) revert TotalsDoNotSumToBallots(sum, ballots);
     }
 
     // ----------------------------------------------------- ballot submission
@@ -444,6 +664,46 @@ contract VoteChainV3 is Ownable2Step {
 
     function commitmentRegistered(uint256 commitment) external view returns (bool) {
         return _commitmentRegistered[commitment];
+    }
+
+    /// @notice The pinned trustee configuration (3 trustees, threshold 2).
+    function trusteeConfiguration()
+        external
+        view
+        returns (bool configured, bytes32 transcriptHash, address[3] memory trustees, uint256[2][3] memory verificationKeys, uint256 electionKeyX_, uint256 electionKeyY_)
+    {
+        return (trusteesConfigured, trusteeTranscriptHash, _trusteeAddresses, _trusteeKeys, electionKeyX, electionKeyY);
+    }
+
+    /// @notice The bundle hash a trustee anchored for a constituency (0 = not published).
+    function partialBundleHash(bytes32 constituencyId, uint256 trusteeIndex) external view returns (bytes32) {
+        if (trusteeIndex == 0 || trusteeIndex > TRUSTEE_COUNT) revert InvalidTrusteeIndex(trusteeIndex);
+        return _partialHashes[constituencyId][trusteeIndex - 1];
+    }
+
+    /// @notice The results hash a trustee endorsed for a constituency (0 = none).
+    function endorsementOf(bytes32 constituencyId, uint256 trusteeIndex) external view returns (bytes32) {
+        if (trusteeIndex == 0 || trusteeIndex > TRUSTEE_COUNT) revert InvalidTrusteeIndex(trusteeIndex);
+        return _endorsements[constituencyId][trusteeIndex - 1];
+    }
+
+    function isFinalized(bytes32 constituencyId) external view returns (bool) {
+        return _finalResults[constituencyId].finalized;
+    }
+
+    /// @notice The finalized result of a constituency. Reverts until two distinct trustees endorsed the same result: nothing is readable before finalization.
+    function finalResult(bytes32 constituencyId)
+        external
+        view
+        returns (uint256[16] memory totals, bytes32 resultsHash, uint256 ballotCount, uint256 candidateCount)
+    {
+        FinalResult storage result = _finalResults[constituencyId];
+        if (!result.finalized) revert NotFinalized(constituencyId);
+        for (uint256 j = 0; j < K_MAX; ++j) {
+            totals[j] = ((j < 8 ? result.packedLow : result.packedHigh) >> (32 * (j % 8))) & 0xffffffff;
+        }
+        Constituency storage c = _constituencies[constituencyId];
+        return (totals, result.resultsHash, c.ballots, c.candidateCount);
     }
 
     // --------------------------------------------------------------- internals

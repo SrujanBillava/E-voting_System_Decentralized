@@ -16,9 +16,10 @@ const code = (text: string): string => text.replace(/\/\*[\s\S]*?\*\//g, "").rep
 describe("API inspection: aggregate-only decryption", () => {
   it("the exported workflow is exactly this list (a new export must be a conscious decision)", () => {
     assert.deepEqual(Object.keys(api).sort(), [
-      "AggregateCiphertext", "CeremonyAbort", "DEFAULT_MIN_BALLOTS", "DEFAULT_PARAMS", "DEFAULT_THRESHOLD", "DEFAULT_TRUSTEES", "InvalidInputError", "KDF_MODERATE", "KDF_SENSITIVE", "MAX_BALLOT_COUNT", "MAX_SLOTS", "SUBGROUP_ORDER",
-      "TEST_CONTEXT", "TRANSCRIPT_VERSION", "ToolkitError", "Trustee", "VerificationError", "buildTranscript", "combinePartialDecryptions", "confirmCeremony", "deserializeTranscript", "readShareFile", "serializeTranscript", "tallyAggregate",
-      "verifyPartialDecryption", "verifyTranscript", "writeShareFile",
+      "AggregateCiphertext", "BUNDLE_WORDS", "CeremonyAbort", "DEFAULT_MIN_BALLOTS", "DEFAULT_PARAMS", "DEFAULT_THRESHOLD", "DEFAULT_TRUSTEES", "InvalidInputError", "KDF_MODERATE", "KDF_SENSITIVE", "MAX_BALLOT_COUNT", "MAX_SLOTS", "SUBGROUP_ORDER",
+      "TEST_CONTEXT", "TRANSCRIPT_VERSION", "ToolkitError", "Trustee", "VerificationError", "VerifiedAggregate", "WORDS_PER_SLOT", "activeWordsOf", "assertValidResults", "auditConstituency", "buildTranscript", "bundleFromPartial", "bundleHash",
+      "combinePartialDecryptions", "confirmCeremony", "deserializeTranscript", "padBundle", "padTotals", "partialFromBundle", "readShareFile", "resultsHash", "serializeTranscript", "tallyAggregate", "verifyChainAggregate", "verifyFinalResult",
+      "verifyPartialDecryption", "verifyPinnedTranscript", "verifyTranscript", "writeShareFile",
     ]);
   });
 
@@ -36,10 +37,20 @@ describe("API inspection: aggregate-only decryption", () => {
     for (const fn of ["verifyPartialDecryption", "combinePartialDecryptions", "tallyAggregate"]) assert.match(threshold, new RegExp(`export function ${fn}\\(input: \\{[^}]*aggregate: AggregateCiphertext`), fn);
   });
 
+  it("the INTEGRATED decryption entry point takes ONLY a VerifiedAggregate, and the chain adapter exports exactly this list (a new export must be a conscious decision)", async () => {
+    assert.equal(Trustee.prototype.partialDecryptVerified.length, 1);
+    assert.match(code(sources.find(([f]) => f === "trustee.ts")![1]), /partialDecryptVerified\(verified: VerifiedAggregate\): PartialDecryption/);
+    const chain = await import("votechain-trustee-v3/chain");
+    assert.deepEqual(Object.keys(chain).sort(), [
+      "auditFromChain", "constituencyKey", "endorseAuditedResult", "publishFromShareFile", "publishPartialDecryption", "readBallotLog", "readConstituencyState", "readContext", "readPartialPublications", "readPinnedConfiguration",
+      "readStoredBundleHashes", "readVerifiedFinalResult",
+    ]);
+  });
+
   it("every function in src/ whose name mentions decryption is on this list, and none accepts a bare ciphertext or ballot", () => {
     const found = new Set<string>();
     for (const [, text] of sources) for (const m of code(text).matchAll(/(?:function\s+|^\s+|const\s+)(\w*[dD]ecrypt\w*)\s*(?:\(|=)/gm)) found.add(m[1]!);
-    assert.deepEqual([...found].sort(), ["combinePartialDecryptions", "decrypt", "decryptShareRecord", "decryptionChallenge", "partialDecrypt", "proveDecryptionShare", "proveDecryptionShareWithNonce", "verifyDecryptionShare", "verifyPartialDecryption"]);
+    assert.deepEqual([...found].sort(), ["combinePartialDecryptions", "decrypt", "decryptShareRecord", "decryptionChallenge", "partialDecrypt", "partialDecryptVerified", "proveDecryptionShare", "proveDecryptionShareWithNonce", "verifyDecryptionShare", "verifyPartialDecryption"]);
     // none of them is parameterised by an ElGamal ciphertext type
     for (const [file, text] of sources) assert.doesNotMatch(code(text), /[{,]\s*c1\s*:|\binterface\s+\w*Ciphertext\w*\b|\btype\s+\w*Ciphertext\w*\s*=/, `${file}: a ciphertext (c1, c2) type`);
   });
@@ -59,9 +70,9 @@ describe("API inspection: aggregate-only decryption", () => {
     assert.deepEqual(Object.getOwnPropertyNames(AggregateCiphertext.prototype).sort(), ["constructor", "toWire"]);
   });
 
-  it("the package exposes ONLY the workflow entry point: the low-level primitives cannot be deep-imported by a consumer", async () => {
+  it("the package exposes ONLY the workflow entry point and the chain adapter: the low-level primitives cannot be deep-imported by a consumer", async () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-    assert.deepEqual(pkg.exports, { ".": "./src/index.ts" });
+    assert.deepEqual(pkg.exports, { ".": "./src/index.ts", "./chain": "./chain/index.ts" }, "the workflow entry point and the chain adapter, nothing else");
     assert.equal(pkg.main, "./src/index.ts");
     const self = await import("votechain-trustee-v3");
     assert.equal(self.Trustee, Trustee);

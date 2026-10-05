@@ -4,8 +4,8 @@ An isolated toolkit that proves the frozen V3 threshold architecture works: a **
 decryption** with Chaum-Pedersen proofs, **2-of-3 combination**, and **bounded integer tally recovery** over BabyJubJub, written in TypeScript (erasable
 syntax, run natively by Node 22.18+, no build step).
 
-Status: prototype. It is **not** connected to `VoteChainV3`, the backend, the frontend or the relayer. There is no trustee registration, `finalTotals` or
-endorsement logic here: those come after this toolkit is accepted. V2, `privacy-v3/` and `smart-contract-v3/` are untouched.
+Status: prototype. The toolkit is integrated with `VoteChainV3` for **tallying** (see "Tallying against VoteChainV3" below: chain-derived aggregate, anchored
+partial decryptions, off-chain audit, two-trustee endorsement); it is **not** connected to the backend, the frontend or the relayer. V2 and `privacy-v3/` are untouched.
 
 * No single full decryption secret ever exists. Any two trustees decrypt the encrypted **aggregate**; one alone cannot.
 * The workflow is **aggregate-only**: there is no function that decrypts an individual ballot.
@@ -23,10 +23,14 @@ endorsement logic here: those come after this toolkit is accepted. V2, `privacy-
 | `src/ceremony.ts` | the public side of the ceremony: message parsing, transcript, hash, canonical JSON, verifier, confirmations |
 | `src/trustee.ts` | one trustee: its secrets live in `#private` fields; the ceremony state machine; partial decryption; encrypted export and restore |
 | `src/aggregate.ts`, `threshold.ts`, `bsgs.ts` | the aggregate-only ciphertext type; verify and combine partial decryptions; baby-step giant-step |
+| `src/chain-aggregate.ts` | `verifyChainAggregate`: rebuilds a constituency's aggregate from the COMPLETE `BallotRecorded` log, compares it with the contract, and mints the branded `VerifiedAggregate` |
+| `src/bundle.ts`, `results.ts` | the frozen publication-bundle (64 words) and results (16 totals) encodings and hashes, byte-identical to `V3Encodings.sol` |
+| `src/audit.ts` | the off-chain auditor: pinned-transcript check, proof verification of every published bundle, 2-of-3 combination, BSGS, the final-result check |
+| `chain/index.ts` | the duck-typed `VoteChainV3` adapter (`./chain` export): read the log/state, publish ONE trustee's partial, endorse an audited result |
 | `src/storage.ts` | encrypted-at-rest share files (Argon2id + XChaCha20-Poly1305) |
 | `testing/` | test and demo support only (never imported by `src/`): ceremony harness, scripted dishonest trustee, RNG spy, torsion points, privacy-v3 adapter |
-| `scripts/demo.ts`, `bench-bsgs.ts`, `make-vectors.ts` | the election demo, the BSGS benchmark, the known-answer vector generator |
-| `spec/vectors.json` | frozen known-answer vectors for every encoding (checked in `test/vectors.test.ts`) |
+| `scripts/demo.ts`, `bench-bsgs.ts`, `make-vectors.ts`, `make-integration-vectors.ts` | the election demo, the BSGS benchmark, the known-answer vector generators |
+| `spec/vectors.json`, `spec/integration-vectors.json` | frozen known-answer vectors for every encoding (checked in `test/vectors.test.ts`, `test/tally-encodings.test.ts`; the second file is also loaded by the Solidity tests) |
 | `results/` | `bsgs-benchmark.json`, `demo-run.json` (public output of one demo run) |
 | `demo/` | scratch space for `--store`; everything in it except its README is git-ignored |
 
@@ -94,9 +98,23 @@ The share's *correctness* is checked separately against the sender's public comm
 The only ciphertext type any workflow function accepts is `AggregateCiphertext`: per-slot sums for a whole constituency with the ballot count, creatable only through `create` (per-slot sums) or `fromBallotLog` (recomputed from the public
 `BallotRecorded` log, the way an independent trustee does it). A `Trustee` refuses an aggregate of fewer than `minBallots` ballots (default **2**: a one-ballot "aggregate" *is* an individual ballot) and an aggregate of another election context. Tests inspect the exported API
 (an exact list), the prototype's methods, every function name containing "decrypt", and the package `exports` (low-level primitives cannot be deep-imported). **Residual risk, by nature of threshold ElGamal:** a trustee cannot tell a genuine aggregate from a single ballot
-presented with a false `ballotCount`. The defence is procedural and belongs to the integration phase: a trustee must **recompute the aggregate itself from the complete on-chain ballot log** (`fromBallotLog`) and compare it with the contract's aggregate and ballot count before decrypting.
+presented with a false `ballotCount`. The defence is not the `minBallots` guard but the integrated path below: a trustee decrypts only a `VerifiedAggregate`, which exists only after the aggregate was **recomputed from the complete on-chain ballot log** and compared with the contract's.
 
 An empty aggregate (zero ballots: the identity in every slot, exactly the contract's initial state) tallies to zeros without any trustee.
+
+## Tallying against VoteChainV3
+
+After the election is **Closed** (all of this is public data; nothing here needs a secret except step 3):
+
+1. **Pinned configuration.** In Setup the contract owner pins the DKG transcript hash, the three trustee addresses, `vk_1..vk_3` and `H` (exactly `n = 3`, `t = 2`; immutable once the election is Open; `openElection` fails without it). Every trustee and auditor re-derives the transcript hash from the published transcript, checks `{n: 3, t: 2}`, and that its `H` and `vk_i` equal the pinned ones (`verifyPinnedTranscript`).
+2. **Chain-derived aggregate** (`verifyChainAggregate`). The adapter reads the election's COMPLETE `BallotRecorded` log, checks indices `1..N` (a missing, duplicated or reordered event is refused), rebuilds the constituency's aggregate locally by point addition, and compares **every active A/B slot and the ballot count** with the contract. Any mismatch refuses. Only the resulting `VerifiedAggregate` (a branded type that cannot be constructed or forged outside that function) is accepted by `Trustee.partialDecryptVerified`; an aggregate handed in by any other component is refused. A constituency with exactly **one** valid ballot is therefore tallyable (the log check, not `minBallots`, is the guard); an empty one has nothing to decrypt (all zeros).
+3. **Publication.** Each trustee decrypts the verified aggregate (the existing Chaum-Pedersen proofs, unchanged) and publishes a **bundle**: `PDEC_BUNDLE_TAG = keccak256("VOTECHAIN-V3-PDEC-BUNDLE-1")`; 16 slots x `(D.x, D.y, e, z)` = 64 words, padded slots all zero. The contract computes the bundle hash itself (`keccak256(abi.encode(tag, chainId, contract, electionId, transcriptHash, trusteeIndex, constituencyId, ballotCount, K_c, words[64]))`), stores only that hash, and emits the active words. Only the trustee pinned for that index may publish, once per constituency, never replaced. The proofs are **not** verified on-chain (shape only: canonical on-curve `D`, `0 < e, z < l`, canonical padding).
+4. **Audit** (`auditConstituency` / `auditFromChain`, no secret needed): pinned transcript, aggregate rebuilt from all events, publications read, bundle hashes recomputed and compared with the stored ones, **every Chaum-Pedersen proof verified off-chain**, duplicate trustee indices refused, at least two valid trustees required, points combined with the existing Lagrange code, totals by BSGS, `t*G` re-checked, bounds checked, `sum == ballotCount`. The full secret `s` is never reconstructed (the integration modules cannot even do scalar arithmetic).
+5. **Endorsement and finalization.** A trustee that published endorses the totals it audited (`RESULTS_TAG = keccak256("VOTECHAIN-V3-RESULTS-1")`; `uint256[16]` zero-padded; the contract hashes tag, chainId, contract, electionId, transcriptHash, constituency, ballotCount, K_c, totals itself). Totals must be exactly `K_c` values, each `<=` the ballot count, summing to the ballot count. **Two distinct trustees endorsing the same hash finalize the constituency**, immutably; there is no tie-break, no replacement, no second endorsement. Finalized totals are readable (`finalResult`) only after finalization.
+
+**Accepted prototype limitation.** The contract cannot verify proofs, so **two malicious trustees can still endorse (and thereby finalize) a false result.** This is accepted for the prototype because the public auditor can independently verify their published partials and the decrypted aggregate: `verifyFinalResult` / `readVerifiedFinalResult` raise `FINAL_RESULT_MISMATCH` for a finalized result that differs from the audited one (demonstrated in `smart-contract-v3/test/tally.test.js`).
+
+**Process separation.** A trustee's whole input is ONE encrypted share file + the public transcript + public chain data (`publishFromShareFile`, which calls `Trustee.restore` once); there is no function that takes several share files or several trustees. In production run **one OS process on one machine per trustee**, each with its own signer; the auditor needs no secret. The tests hold several trustees in one process for convenience only.
 
 ## Transcript (public, canonical, pinnable)
 
@@ -131,7 +149,7 @@ npm test                   # the whole suite (about 3 minutes; some files run in
 npm run demo               # the 7/4/2 election, in memory
 TRUSTEE_V3_PASSWORD_1=... TRUSTEE_V3_PASSWORD_2=... TRUSTEE_V3_PASSWORD_3=... node scripts/demo.ts --store demo --out results/demo-run.json
 npm run bench:bsgs         # add -- --extended for 10^7 and 10^8
-node scripts/make-vectors.ts   # regenerate spec/vectors.json (add --check to fail on drift instead of writing)
+npm run vectors            # regenerate spec/vectors.json and spec/integration-vectors.json (npm run vectors:check fails on drift instead of writing)
 ```
 
 The privacy-v3 core is used by tests and the demo only, through one adapter (`testing/pv3.ts`); run `npm ci` in `../privacy-v3` first. `src/` never imports it.
@@ -159,7 +177,9 @@ A constituency holds at most 2^20 = 1,048,576 ballots (a depth-20 Semaphore grou
 * **Feldman VSS has a known (benign for ElGamal voting) bias:** a trustee that publishes last could influence the distribution of `H` by aborting. The proofs of knowledge stop rogue keys; no commit-then-reveal round was added (not in the frozen design). **No robustness:** one dishonest trustee can force a restart, never a wrong key.
 * **Sender authentication of shares** comes from the transport keys announced in round 0 (authenticated `crypto_box`); `crypto_box` is deniable, which is irrelevant here because every share is checked against public commitments. The announcements themselves must reach all trustees over an authentic channel (an equivocating announcer is caught as a ceremony-id mismatch and aborts everything).
 * **File permissions:** `0600` cannot be enforced on every filesystem. The repository's own drive reports `777` for everything, so the demo prints a warning; the files are encrypted anyway, but real shares belong on a filesystem that honours permissions.
-* The minimum-ballots guard (default 2) is an addition to the frozen design, not a substitute for the log check above.
+* The minimum-ballots guard (default 2) is an addition to the frozen design and applies to the low-level `partialDecrypt` only; it is hygiene, not the security boundary (the chain-log verification is). The integrated path accepts a verified single ballot.
+* Subgroup membership of `H` and `vk_i` is a **ceremony duty** (the verified transcript guarantees it); the contract checks only that they are on the curve, non-identity and mutually consistent (`H = 2 vk_1 - vk_2`, `vk_3 = 2 vk_2 - vk_1`, `vk_1 != vk_2`), with point additions, never a scalar multiplication.
+* **Chain reads.** The adapter asks for the whole `BallotRecorded` log in one `queryFilter` and reads the contract state in separate calls. A node that truncates the range, or a reorg between the reads, makes the checks fail (log length `!=` `totalBallots`, aggregate mismatch): the failure mode is a refusal, never a wrong aggregate. A hosted RPC with a block-range cap would need chunked reads (not implemented), and trustees should wait for finality before acting.
 * The trustee protocol is simulated in one process with JSON-cloned messages (so no object reference can carry a secret between trustees); a networked deployment needs an authenticated bulletin board.
 
 ## Tests
@@ -167,4 +187,6 @@ A constituency holds at most 2^20 = 1,048,576 ballots (a depth-20 Semaphore grou
 `npm test` runs every file under `test/`: parameters and curve constants against privacy-v3; scalar, point, encoding and Lagrange primitives; the Schnorr and Chaum-Pedersen proofs (honest, independent challenge check, every forgery, replay, torsion, identity, zero and wrong-modulus case);
 share transport; the DKG (oracle, leakage, state machine, 12 random ceremonies, 3-of-5); every abort scenario (malformed commitments, invalid proofs, rogue key, corrupt, misdelivered and inconsistent shares, a dishonest dealer, equivocation, missing, duplicate and invalid trustees,
 tampered transcripts and hashes, keys from another ceremony, decryption before completion); transcripts; threshold decryption (6 ceremonies x 3 random aggregates x every pair, one trustee alone, duplicates, every tampering, aggregate-only, edge cases); BSGS; encrypted storage and restore;
-hygiene (entropy, modulus, logging, secrets); API inspection; privacy-v3 interoperability; the demo script; known-answer vectors.
+hygiene (entropy, modulus, logging, secrets); API inspection; privacy-v3 interoperability; the demo script; known-answer vectors; and for the tallying integration `tally-encodings` (tags, 73-word bundle and 24-word results hashes against independent `abi.encode`, every field bound, drift check) and
+`tally-integration` (every trustee pair; a missing, duplicated, reordered, re-indexed or modified log event; the fake-aggregate attack; every tampered, mismatched or malformed publication; one valid trustee, duplicate trustees, mixed transcripts, out-of-bound and non-summing results; process separation; no secret arithmetic).
+The contract side of the same flow, with real Semaphore and Groth16 proofs on a Hardhat chain, is `smart-contract-v3/test/trustees.test.js` and `tally.test.js`.
