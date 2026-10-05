@@ -116,11 +116,13 @@ Configuration is baked in at build time and never read from the voter, the URL o
 
 ## PROTOTYPE NOTICE (for the people who release this)
 
-The Groth16 setup behind the bundled proving files is a **TEST / PROTOTYPE** setup. It is fine for development and rehearsal. **Before the final V3 freeze:**
+The Groth16 setup behind the bundled ballot-validity proving key is the **final prototype / research ceremony** of `../privacy-v3` (`spec/final-ceremony.json`): the unchanged circuit, the public PSE Perpetual Powers of Tau as phase 1,
+and a phase 2 of three contributions plus a public beacon, **all made on one development machine**. It is cryptographically a correctly verified Groth16 key, but it is **not an independently governed production ceremony**.
+**Before a production election:**
 
-1. generate the final ceremony artifacts;
-2. export the final `BallotValidityVerifier`;
-3. replace the browser proving zkey (and its hash in `pinned-artifacts.json`);
+1. run a genuinely independent phase-2 ceremony for the unchanged circuit;
+2. export the verifier from its final zkey (`smart-contract-v3`: `npm run export:verifier`);
+3. replace the browser proving zkey (and its hash in `pinned-artifacts.json`; `npm run assets` checks the pins against the ceremony manifest);
 4. verify provenance and hashes;
 5. rerun the final end-to-end test.
 

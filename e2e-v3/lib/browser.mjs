@@ -1,6 +1,7 @@
 // REAL-BROWSER SUPPORT. Builds the kiosk against a running stack, serves it with the production security headers, and drives the real system Chrome with Playwright.
 // The browser is real; the webcam is Chrome's built-in fake device plus (in the TEST build only) the test face engine that stands in for a person.
 import { execFileSync, spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "@playwright/test";
 import { capture, person, rounded } from "../../backend-api/test/helpers/face.js";
@@ -16,6 +17,19 @@ export function buildKiosk(stack, { outDir, e2eFace = false }) {
   if (e2eFace) env.VITE_E2E_FACE = "1";
   const dir = path.join(KIOSK_DIR, outDir);
   execFileSync(process.execPath, [path.join(KIOSK_DIR, "node_modules", "vite", "bin", "vite.js"), "build", "--outDir", dir, "--emptyOutDir"], { cwd: KIOSK_DIR, env, stdio: "pipe" });
+  return dir;
+}
+
+/**
+ * The TEST-ONLY proof harness page (browser/proof-harness), built with the kiosk's OWN Vite configuration (same shims, same CSP plugin), plus the bundled proving artifacts the kiosk
+ * would serve. `services` = the three origins the page may talk to (here only the RPC proxy matters).
+ */
+export function buildHarness({ rpcUrl, outDir }) {
+  const env = { ...process.env, VITE_IDENTITY_BASE: rpcUrl, VITE_RELAY_BASE: rpcUrl, VITE_RPC_URL: rpcUrl, VITE_CHAIN_ID: "31337", VITE_VOTECHAIN_ADDRESS: "0x5FbDB2315678afecb367f032d93F642f64180aa3" };
+  delete env.VITE_E2E_FACE;
+  const dir = path.join(KIOSK_DIR, outDir);
+  execFileSync(process.execPath, [path.join(KIOSK_DIR, "node_modules", "vite", "bin", "vite.js"), "build", path.join(ROOT, "e2e-v3", "browser", "proof-harness"), "--config", path.join(KIOSK_DIR, "vite.config.ts"), "--outDir", dir, "--emptyOutDir"], { cwd: KIOSK_DIR, env, stdio: "pipe" });
+  fs.cpSync(path.join(KIOSK_DIR, "public", "artifacts"), path.join(dir, "artifacts"), { recursive: true });
   return dir;
 }
 

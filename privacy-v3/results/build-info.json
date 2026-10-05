@@ -1,5 +1,5 @@
 {
-  "builtAt": "2026-10-04T19:30:46.809Z",
+  "builtAt": "2026-10-05T15:57:08.723Z",
   "circomVersion": "circom compiler 2.2.3",
   "snarkjs": "0.7.5",
   "circuit": {
@@ -20,18 +20,15 @@
     "ptau": "9693220206afab749e3d88d4ab5fdf5d36120ea102e7e587ccea0e7a5208e711",
     "r1cs": "8cf62bd036a2d7c240d98d599eccbfb3f63ee2789fb0d07e13cc6effa67c047a",
     "wasm": "15c7ce50f6efc22759c24e399bf8ed6f16adef881930da466542608e7f51d3df",
-    "zkey": "8be58c6d8b445ce91167bb7c9f117b1dee5107a6b0de71be5eb49be1017d2816",
-    "verificationKey": "6bd3195a26aa7aa1e78e629d9f8d05cb5e4fbf8148500d5d22a4f60c5afad61d",
+    "zkey": "2edfaa31203e0104c6ac67ce898759ea1e301d82ea133f4e1a96a0bb401d8062",
+    "verificationKey": "8795bedfacb583cd37cc4a7f19913f0c63839ee16fa2ea9387ff6b79b3335dba",
     "semaphore-3.wasm": "48e15502f710be0a623d573d472edeeaf918fd5eee0b2ca9b407c4e4f20d12f2",
     "semaphore-3.zkey": "c36653c42784df35a01f3d93415af9ad8292a540f8deb134a6a34a01752a89d3",
     "semaphore-20.wasm": "6f71e55586929e520e76027ebe067daac8b41e2f4b8057313a5fd0304e1e44ee",
     "semaphore-20.zkey": "33f9a067a80c7daf90e085449073613a9559a1904dd40aeb6d603afb7988c2cc"
   },
   "buildTimingsMs": {
-    "compile": 4074,
-    "zkey_new": 17485,
-    "zkey_contribute": 2725,
-    "zkey_verify": 18313
+    "zkey_verify": 15769
   },
-  "setupNote": "Phase 1 = Perpetual Powers of Tau (PSE ppot_0080_18). Phase 2 = ONE local contribution with discarded random entropy: TEST ONLY, not a ceremony."
+  "setupNote": "FINAL PROTOTYPE / RESEARCH CEREMONY (spec/final-ceremony.json): phase 1 = Perpetual Powers of Tau (PSE ppot_0080_18); phase 2 = three contributions with discarded OS-CSPRNG entropy + a drand beacon, all on ONE development machine. Not an independently governed production ceremony."
 }

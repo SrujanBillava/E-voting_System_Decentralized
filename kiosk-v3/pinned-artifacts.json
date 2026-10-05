@@ -1,8 +1,8 @@
 {
-  "note": "SHA-256 of the proving artifacts this kiosk is allowed to use. They are the TEST / PROTOTYPE artifacts of privacy-v3 (artifacts/build/build-info.json). FINAL V3 RELEASE REQUIRES FINAL CEREMONY ARTIFACTS: generate them, export the final BallotValidityVerifier, replace these four files and these four hashes, verify provenance, rerun the end-to-end test.",
+  "note": "SHA-256 of the proving artifacts this kiosk is allowed to use. The ballot-validity zkey is the output of the FINAL PROTOTYPE / RESEARCH Groth16 ceremony (privacy-v3/spec/final-ceremony.json: three phase-2 contributions + a public beacon, all on ONE development machine; NOT an independently governed ceremony). A production election needs a genuinely independent phase 2: run it, export its verifier, replace the zkey and this hash, verify provenance, rerun the end-to-end test.",
   "files": {
     "ballot_validity.wasm": "15c7ce50f6efc22759c24e399bf8ed6f16adef881930da466542608e7f51d3df",
-    "ballot_validity_final.zkey": "8be58c6d8b445ce91167bb7c9f117b1dee5107a6b0de71be5eb49be1017d2816",
+    "ballot_validity_final.zkey": "2edfaa31203e0104c6ac67ce898759ea1e301d82ea133f4e1a96a0bb401d8062",
     "semaphore-20.wasm": "6f71e55586929e520e76027ebe067daac8b41e2f4b8057313a5fd0304e1e44ee",
     "semaphore-20.zkey": "33f9a067a80c7daf90e085449073613a9559a1904dd40aeb6d603afb7988c2cc"
   }
