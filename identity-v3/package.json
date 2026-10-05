@@ -1,0 +1,33 @@
+{
+  "name": "votechain-identity-v3",
+  "version": "0.0.1",
+  "private": true,
+  "description": "VoteChain V3 identity backend: voter login, biometrics, eligibility and exactly ONE anonymous-credential issuance per voter (epoch-batched Semaphore commitments). It never sees a ballot.",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test --test-concurrency=1 \"test/unit/**/*.test.js\"",
+    "test:chain": "node --test --test-concurrency=1 --test-timeout=900000 \"test/chain/**/*.test.js\"",
+    "test:boundary": "node --test --test-concurrency=1 --test-timeout=900000 \"test/boundary/**/*.test.js\"",
+    "sync:abi": "node scripts/sync-abi.js",
+    "check:abi": "node scripts/sync-abi.js --check"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "ethers": "^6.17.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "mongoose": "^9.8.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.1"
+  }
+}
