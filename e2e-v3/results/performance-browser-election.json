@@ -1,116 +1,116 @@
 {
   "machine": "development machine, real Chrome 154 (headless), 20 logical cores, test face engine",
   "meanOverVoters": {
-    "faceStepMs": 3354,
-    "groupVerifyMs": 182,
-    "validityProofMs": 1644,
-    "membershipProofMs": 402,
-    "castToReceiptMs": 2874
+    "faceStepMs": 3894,
+    "groupVerifyMs": 168,
+    "validityProofMs": 1611,
+    "membershipProofMs": 382,
+    "castToReceiptMs": 2733
   },
   "perVoter": [
     {
       "voter": 1,
-      "faceStepMs": 3942,
-      "groupVerifyMs": 177,
-      "validityProofMs": 1840,
-      "membershipProofMs": 543,
-      "castToReceiptMs": 3936
+      "faceStepMs": 5130,
+      "groupVerifyMs": 171,
+      "validityProofMs": 1682,
+      "membershipProofMs": 476,
+      "castToReceiptMs": 3335
     },
     {
       "voter": 2,
-      "faceStepMs": 3963,
-      "groupVerifyMs": 208,
-      "validityProofMs": 1619,
-      "membershipProofMs": 392,
-      "castToReceiptMs": 2512
+      "faceStepMs": 2143,
+      "groupVerifyMs": 223,
+      "validityProofMs": 1601,
+      "membershipProofMs": 373,
+      "castToReceiptMs": 2469
     },
     {
       "voter": 3,
-      "faceStepMs": 3959,
-      "groupVerifyMs": 151,
-      "validityProofMs": 1676,
-      "membershipProofMs": 378,
-      "castToReceiptMs": 2470
+      "faceStepMs": 2152,
+      "groupVerifyMs": 147,
+      "validityProofMs": 1622,
+      "membershipProofMs": 369,
+      "castToReceiptMs": 2476
     },
     {
       "voter": 4,
-      "faceStepMs": 3959,
-      "groupVerifyMs": 195,
-      "validityProofMs": 1663,
-      "membershipProofMs": 390,
-      "castToReceiptMs": 2545
+      "faceStepMs": 3949,
+      "groupVerifyMs": 201,
+      "validityProofMs": 1583,
+      "membershipProofMs": 371,
+      "castToReceiptMs": 2443
     },
     {
       "voter": 5,
-      "faceStepMs": 2151,
-      "groupVerifyMs": 225,
-      "validityProofMs": 1655,
-      "membershipProofMs": 373,
-      "castToReceiptMs": 2557
+      "faceStepMs": 5145,
+      "groupVerifyMs": 163,
+      "validityProofMs": 1637,
+      "membershipProofMs": 379,
+      "castToReceiptMs": 2421
     },
     {
       "voter": 6,
-      "faceStepMs": 5134,
-      "groupVerifyMs": 197,
-      "validityProofMs": 1616,
-      "membershipProofMs": 411,
-      "castToReceiptMs": 4244
+      "faceStepMs": 3960,
+      "groupVerifyMs": 154,
+      "validityProofMs": 1565,
+      "membershipProofMs": 391,
+      "castToReceiptMs": 3732
     },
     {
       "voter": 7,
-      "faceStepMs": 3966,
-      "groupVerifyMs": 177,
-      "validityProofMs": 1579,
-      "membershipProofMs": 417,
-      "castToReceiptMs": 2513
+      "faceStepMs": 3914,
+      "groupVerifyMs": 145,
+      "validityProofMs": 1601,
+      "membershipProofMs": 363,
+      "castToReceiptMs": 2472
     },
     {
       "voter": 8,
-      "faceStepMs": 3970,
-      "groupVerifyMs": 214,
-      "validityProofMs": 1639,
-      "membershipProofMs": 403,
-      "castToReceiptMs": 2500
+      "faceStepMs": 5129,
+      "groupVerifyMs": 162,
+      "validityProofMs": 1596,
+      "membershipProofMs": 370,
+      "castToReceiptMs": 2467
     },
     {
       "voter": 9,
-      "faceStepMs": 2142,
-      "groupVerifyMs": 156,
-      "validityProofMs": 1594,
-      "membershipProofMs": 393,
-      "castToReceiptMs": 2459
+      "faceStepMs": 3954,
+      "groupVerifyMs": 172,
+      "validityProofMs": 1626,
+      "membershipProofMs": 360,
+      "castToReceiptMs": 2528
     },
     {
       "voter": 10,
-      "faceStepMs": 2170,
-      "groupVerifyMs": 154,
-      "validityProofMs": 1602,
-      "membershipProofMs": 383,
-      "castToReceiptMs": 4232
+      "faceStepMs": 3947,
+      "groupVerifyMs": 160,
+      "validityProofMs": 1591,
+      "membershipProofMs": 386,
+      "castToReceiptMs": 3734
     },
     {
       "voter": 11,
-      "faceStepMs": 3945,
-      "groupVerifyMs": 159,
-      "validityProofMs": 1605,
-      "membershipProofMs": 373,
-      "castToReceiptMs": 2474
+      "faceStepMs": 2146,
+      "groupVerifyMs": 164,
+      "validityProofMs": 1607,
+      "membershipProofMs": 364,
+      "castToReceiptMs": 2489
     },
     {
       "voter": 12,
-      "faceStepMs": 2150,
-      "groupVerifyMs": 188,
-      "validityProofMs": 1645,
-      "membershipProofMs": 388,
-      "castToReceiptMs": 2500
+      "faceStepMs": 5129,
+      "groupVerifyMs": 162,
+      "validityProofMs": 1612,
+      "membershipProofMs": 386,
+      "castToReceiptMs": 2480
     },
     {
       "voter": 13,
-      "faceStepMs": 2154,
-      "groupVerifyMs": 162,
-      "validityProofMs": 1637,
-      "membershipProofMs": 385,
-      "castToReceiptMs": 2424
+      "faceStepMs": 3921,
+      "groupVerifyMs": 165,
+      "validityProofMs": 1616,
+      "membershipProofMs": 377,
+      "castToReceiptMs": 2477
     }
   ]
 }

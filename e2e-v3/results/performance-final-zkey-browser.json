@@ -1,11 +1,11 @@
 {
   "machine": "development machine, real Chrome 154 (headless), 20 logical cores",
-  "artifactLoadAndHashCheckMs": 87,
-  "encryptMs": 47,
-  "witnessMs": 278,
-  "groth16ProveMs": 1333,
-  "semaphoreProveMs": 288,
-  "preparationTotalMs": 1964,
-  "wallClockLoadToPackageMs": 2229,
+  "artifactLoadAndHashCheckMs": 93,
+  "encryptMs": 45,
+  "witnessMs": 281,
+  "groth16ProveMs": 1285,
+  "semaphoreProveMs": 318,
+  "preparationTotalMs": 1944,
+  "wallClockLoadToPackageMs": 2188,
   "finalZkeySha256": "2edfaa31203e0104c6ac67ce898759ea1e301d82ea133f4e1a96a0bb401d8062"
 }

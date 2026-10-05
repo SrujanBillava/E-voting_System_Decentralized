@@ -4,7 +4,7 @@ The server-side **identity half** of Privacy V3: it logs a voter in, verifies th
 per voter per election**, by inserting the voter's *public* Semaphore identity commitment into their constituency's group on-chain, in **epoch cohorts**.
 Then the identity session **ends**. It never sees a ballot. The anonymous half is the separate [`../relay-v3`](../relay-v3).
 
-Status: prototype, local network, TEST-only proving setup (see `../smart-contract-v3/README.md`). V2 (`../backend-api`, tag `v2.0.0`), `../privacy-v3`,
+Status: prototype, local network; the ballot-validity proving key is the final prototype / research Groth16 ceremony's, not an independently governed production setup (see `../privacy-v3/spec/final-ceremony.json`). V2 (`../backend-api`, tag `v2.0.0`), `../privacy-v3`,
 `../trustee-v3` and `../smart-contract-v3` are untouched.
 
 ## The privacy boundary
