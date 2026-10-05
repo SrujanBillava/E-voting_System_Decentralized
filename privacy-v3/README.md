@@ -1,7 +1,7 @@
 # VoteChain Privacy V3 - isolated cryptographic core (prototype)
 
-**Status: standalone proof-of-concept. NOT integrated with VoteChain V2.** Nothing under `backend-api/`, `frontend/` or `smart-contract/` was touched
-(branch `feature/privacy-v3`, created from the frozen tag `v2.0.0`). There is no backend, relayer, chain or UI code here, and no trustees / DKG.
+**Status: the frozen cryptographic core of VoteChain V3 (release `v3.0.0`).** It started as a standalone proof of concept and is now consumed UNCHANGED by `../smart-contract-v3`, `../trustee-v3`, `../relay-v3` and `../kiosk-v3` (which bundles it for the browser). It is NOT integrated with VoteChain V2: nothing under `backend-api/`, `frontend/` or `smart-contract/` was touched
+(branch `feature/privacy-v3`, created from the frozen tag `v2.0.0`). There is no backend, relayer, chain or UI code in THIS package, and no trustees / DKG (those are `../trustee-v3`).
 
 It demonstrates, end to end and with real zero-knowledge proofs:
 
@@ -122,12 +122,12 @@ check that flipping *any one* of the 68 public signals invalidates a proof, and 
 
 ## Honest limitations (read before building on this)
 
-* **The election key is a single TEST key** generated in memory. Whoever holds it can decrypt every individual ballot. Threshold key generation and *proofs of correct decryption* are the next milestone and are not here.
+* **In THIS package the election key is a single TEST key** generated in memory (demo, benchmarks, tests). Whoever holds it can decrypt every individual ballot. The real election key comes from the 2-of-3 DKG of `../trustee-v3`; threshold key generation and *proofs of correct decryption* are not in this package.
 * **The Groth16 setup is FINAL FOR THIS RESEARCH PROTOTYPE, not a production trusted setup.** The circuit did not change. Phase 1 is the real, public Perpetual Powers of Tau (PSE, contribution 80, `ppot_0080_18`, SHA-256 pinned). Phase 2 is the **final prototype / research ceremony** (`spec/final-ceremony.json`): three contributions, each with fresh OS-CSPRNG entropy in its own process, then a public drand beacon, verified with snarkjs against the R1CS and the ptau. It replaced the earlier single-contribution development setup (a proof from that old setup is refused by the new key: `spec/old-test-proof.json`). **All of it ran on ONE development machine, so it must not be represented as an independently governed production ceremony**: a production election needs a genuinely independent phase 2 (then `smart-contract-v3` `npm run export:verifier`, the kiosk pin, and the end-to-end test again). (Semaphore's own artifacts come from its ceremony and are used as downloaded; their SHA-256 is recorded.)
 * **Voters who sell or are coerced into proving their vote can do so** (they know `r_j`): no receipt-freeness / coercion resistance, as already accepted for V2.
 * **Anonymity is only as good as the group and the network**: the group must be published and auditable (a registrar could add fake members), groups of 1-2 members are not anonymous, and IP/timing metadata is out of scope.
 * **K_MAX = 16 is a hard limit of the compiled circuit.** Real constituencies can have more candidates; cost is linear (~3.4k constraints per slot, see RESULTS). The circuit costs the same for kc = 2 as for kc = 16.
-* **Browser proving was not measured** (Node CLI only). Single-threaded Node proving takes ~7.9 s (validity) + ~1.8 s (Semaphore, depth 20) on a fast desktop CPU, so a kiosk-class device needs real measurement.
+* **Browser proving was measured only on the development machine** (real Chrome, 20 logical cores: validity proof about 1.3-1.7 s, Semaphore depth 20 about 0.3-0.5 s; `../e2e-v3/results/`). Single-threaded Node proving takes ~7.9 s (validity) + ~1.8 s (Semaphore, depth 20) on a fast desktop CPU, so a kiosk-class device still needs its own measurement.
 * The ballot box is in-memory; the real one needs a database with a unique index on the nullifier, rate limiting, and an audit log. Groth16 proofs are *re-randomisable*, so the nullifier (never a proof hash) is the identity of a ballot.
 * The JS ElGamal code uses `node:crypto` for randomness; a browser build needs `crypto.getRandomValues`.
 * On-chain verification (68 public inputs for the validity proof, plus the Semaphore verifier at depth 20) was **not** built or measured.

@@ -5,10 +5,10 @@ decryption** with Chaum-Pedersen proofs, **2-of-3 combination**, and **bounded i
 syntax, run natively by Node 22.18+, no build step).
 
 Status: prototype. The toolkit is integrated with `VoteChainV3` for **tallying** (see "Tallying against VoteChainV3" below: chain-derived aggregate, anchored
-partial decryptions, off-chain audit, two-trustee endorsement); it is **not** connected to the backend, the frontend or the relayer. V2 and `privacy-v3/` are untouched.
+partial decryptions, off-chain audit, two-trustee endorsement); it is exercised end to end by `../e2e-v3` (real contract, identity, relay and kiosk; release `v3.0.0`). V2 and `privacy-v3/` are untouched.
 
 * No single full decryption secret ever exists. Any two trustees decrypt the encrypted **aggregate**; one alone cannot.
-* The workflow is **aggregate-only**: there is no function that decrypts an individual ballot.
+* The workflow is **aggregate-only**: there is no function that decrypts an individual ballot. That is a software policy, not a cryptographic barrier: any two trustees who collude can decrypt an individual (public) ciphertext, which is what a 2-of-3 threshold means.
 * Every failure aborts the ceremony (no complaint or recovery round): it restarts with fresh randomness.
 
 ## Layout
@@ -174,7 +174,7 @@ A constituency holds at most 2^20 = 1,048,576 ballots (a depth-20 Semaphore grou
 ## Limits and decisions (read before relying on this)
 
 * **JavaScript is not constant-time and cannot erase memory.** BabyJubJub arithmetic and `BigInt` operations are variable-time, and a secret `BigInt` cannot be zeroed after use (references are dropped; the transport secret key and plaintext buffers *are* zeroed). A hardened implementation would be needed against a local side-channel or memory-scraping adversary on a trustee machine.
-* **Feldman VSS has a known (benign for ElGamal voting) bias:** a trustee that publishes last could influence the distribution of `H` by aborting. The proofs of knowledge stop rogue keys; no commit-then-reveal round was added (not in the frozen design). **No robustness:** one dishonest trustee can force a restart, never a wrong key.
+* **Feldman VSS has a known (benign for ElGamal voting) bias:** a trustee that publishes last could influence the distribution of `H` by aborting. The proofs of knowledge stop rogue keys; no commit-then-reveal round was added (not in the frozen design). **No robustness:** one dishonest trustee can force a restart (a denial of service of the prototype DKG), never a wrong key.
 * **Sender authentication of shares** comes from the transport keys announced in round 0 (authenticated `crypto_box`); `crypto_box` is deniable, which is irrelevant here because every share is checked against public commitments. The announcements themselves must reach all trustees over an authentic channel (an equivocating announcer is caught as a ceremony-id mismatch and aborts everything).
 * **File permissions:** `0600` cannot be enforced on every filesystem. The repository's own drive reports `777` for everything, so the demo prints a warning; the files are encrypted anyway, but real shares belong on a filesystem that honours permissions.
 * The minimum-ballots guard (default 2) is an addition to the frozen design and applies to the low-level `partialDecrypt` only; it is hygiene, not the security boundary (the chain-log verification is). The integrated path accepts a verified single ballot.

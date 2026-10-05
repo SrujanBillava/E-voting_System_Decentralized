@@ -131,6 +131,9 @@ The kiosk shows this as a collapsed "Developer notice" in its footer; it is deli
 ## Accepted limitations
 
 * The kiosk is trusted (see above). A compromised kiosk sees the choice.
+* No network anonymity: whatever carries a request (a proxy, an ISP) sees source addresses and timing.
+* Real-webcam face matching is not automated end to end: the automated tests use Chrome's fake camera and a test face engine (the real engine is only loaded and run against synthetic video); matching on a real face rests on V2's pipeline tests and a manual checklist.
+* The kiosk reads the contract's `BallotRecorded` log with a plain range query: a hosted RPC with a block-range cap would need chunked reads (not implemented).
 * Liveness is advisory (supervised matching, as in V2): a modified browser can fake it; the identity service cannot verify it.
 * The proving key is ~27 MB and is read from the kiosk's own origin; proving speed depends on the device (measured only on the development machine, see `../e2e-v3/results/`).
 * The prototype trusted-setup caveat above; the relayer's idempotency is per nullifier (an attacker who learns a nullifier cannot change a recorded ballot, only observe public data).

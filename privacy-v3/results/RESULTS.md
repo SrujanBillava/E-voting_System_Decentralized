@@ -155,3 +155,5 @@ Things to know (none required a parameter change):
 **A. CORE PROTOTYPE PASSED, aligned with the frozen architecture.** Keccak ballot hash outside the circuit, the 68-signal validity interface, Semaphore at depth 20 with pinned local artifacts, and now the frozen keccak election scope; the scope and ballot-hash encodings are frozen in `ENCODINGS.md` with known-answer vectors for the contract.
 No known difference from the frozen architecture remains. The core is ready to be *designed into* the application, but it is **not** a finished voting system: see "Honest limitations" in `README.md`
 (single TEST key, test-only phase-2 setup, no threshold decryption / decryption proofs, no on-chain verifier, no browser measurements).
+
+*Historical note (release `v3.0.0`):* that sentence describes the core-prototype milestone. Since then the phase-2 setup was replaced by the final prototype / research ceremony (`spec/final-ceremony.json`; one development machine, not an independently governed production ceremony), and the threshold trustees, the on-chain verifier and the browser kiosk exist in `../trustee-v3`, `../smart-contract-v3` and `../kiosk-v3`.

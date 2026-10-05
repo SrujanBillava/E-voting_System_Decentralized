@@ -184,4 +184,4 @@ Decisions 1-4 were accepted when the contract core was frozen, 5-6 with the tall
 
 ## Not built in this phase
 
-The backend, identity service, commitment batching service, kiosk/frontend and the anonymous relayer service; an independently administered production Groth16 ceremony.
+Historical (contract-core milestone): the identity service, commitment batching, relayer and kiosk were built afterwards in `../identity-v3`, `../relay-v3` and `../kiosk-v3` (release `v3.0.0`). Still not built: an independently administered production Groth16 ceremony.
