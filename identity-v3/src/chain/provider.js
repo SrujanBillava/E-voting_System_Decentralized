@@ -15,3 +15,18 @@ export function createProvider({ rpcUrl, chainId, timeoutMs = 8000 }) {
 export async function readRemoteChainId(provider) {
   return BigInt(await provider.send("eth_chainId", []));
 }
+
+const TRANSIENT_CODES = new Set(["TIMEOUT", "NETWORK_ERROR", "SERVER_ERROR", "UNKNOWN_ERROR", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "EPIPE", "EAI_AGAIN", "EHOSTUNREACH", "ENETUNREACH", "UND_ERR_SOCKET"]);
+
+/**
+ * True for a failure that says nothing about the request itself, only that the node could not answer it right now: a timeout, a refused or reset connection, an
+ * HTTP 5xx, or a JSON-RPC error object (rate limit, "header not found", internal error). ethers v6 reports a JSON-RPC error of eth_call as a CALL_EXCEPTION
+ * WITHOUT any data (measured: "limit exceeded" and "header not found" both arrive that way), so only such a data-less call exception counts; a call that the
+ * node executed and that reverted carries data ("0x" or an error) and is deterministic. The CHAIN_UNAVAILABLE error of chain.js is transient by definition.
+ */
+export function isTransientRpcError(err) {
+  if (!err) return false;
+  if (err.code === "CHAIN_UNAVAILABLE") return true;
+  if (TRANSIENT_CODES.has(err.code) || TRANSIENT_CODES.has(err.cause?.code) || TRANSIENT_CODES.has(err.error?.code)) return true;
+  return err.code === "CALL_EXCEPTION" && err.data == null && !err.revert;
+}

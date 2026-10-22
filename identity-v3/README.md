@@ -68,7 +68,9 @@ timestamps (no identity) and, with the proxy's, source addresses.
 Reservations are grouped by the epoch (30 s of chain time) they were made in. At the first tick of a **later** epoch the cohort of one constituency is sent as
 **one** batch: at most `MAX_BATCH` = 128, at most the remaining voter cap, **never more than one batch per constituency per epoch** (the contract refuses a second),
 commitments **sorted by value** (the public order says nothing about who reserved first). A cohort of one is sent only because nobody else reserved in that epoch.
-The gas limit is **explicit** (`150k + 100k per commitment`, capped at 2^24): Hardhat/Osaka estimation over-probes near large batches.
+The gas limit is **explicit and simulated**: predicted from the batch size *and* the depth of the group's Merkle tree (`150k + 100k per commitment + 40k per
+tree level`, capped at 2^24), and only a limit that a simulation of the exact call has just accepted is signed (doubled, then quadrupled, then the cap, while the
+call runs out of gas). Hardhat/Osaka estimation is only a hint: it over-probes and fails for large batches.
 
 A batch is a persisted state machine, one lease-guarded driver at a time, one issuer queue (nonce = the provider's pending count, read inside the queue):
 
@@ -83,11 +85,23 @@ A batch is a persisted state machine, one lease-guarded driver at a time, one is
 
 `recover()` runs at startup (one instance is assumed, as in V2: stale leases are cleared); a timer runs `tick()`.
 
+**Outages and restarts.** A node that cannot be used (timeout, refused or reset connection, HTTP 5xx, a JSON-RPC error object such as a rate limit or
+"header not found", or a state that contradicts the election's own history such as the Setup phase) is TEMPORARY: every pending reservation stays exactly as it
+is, however long the outage lasts and however often the process restarts; nothing is cancelled and no failure is counted against a voter. Each tick first sends
+one cheap probe; after three failed attempts the batcher backs off (doubling from `BATCH_INTERVAL_MS` up to `CHAIN_RETRY_MAX_MS`, default 60 s), logs every
+attempt, escalates to an error (`CREDENTIAL ISSUANCE DEGRADED`) after a minute and every five minutes after that, reports `issuance: "degraded"` on
+`/api/v3/health`, and resumes by itself. At startup the preflight waits for an unreachable node with the same backoff (a node that answers *wrongly* still stops
+the process). Transactions that already exist are reconciled before anything new is signed, and nothing is signed while another batch is `SIGNED` but not
+known to be broadcast. DETERMINISTIC failures stay bounded by durable state only: each voter record counts its own failed attempts (`failures`, then
+`CANCELLED`, re-requestable), and a cohort that does not fit under the gas cap is re-formed at half the size, that size being derived from the
+`FAILED`/`GAS_CAP_EXCEEDED` batch records, so a restart resets neither. If issuance was closed during an outage, the reservations that never reached the chain
+are cancelled under the issuance rules (audited, logged as an error); a cohort whose transaction was mined before the cutoff is still delivered.
+
 ## Configuration and roles (`.env.example`)
 
 `loadEnv` is pure and lists every problem by name, never by value. The process holds **only the issuer key** and refuses to start if it finds the relayer key, the
 owner key, trustee keys, `RELAY_*`, or V2's JWT/nullifier secrets. The startup preflight proves the right chain, contract and election, that the key *is* the contract's
-issuer, that it is not the owner or a trustee, and that the frozen constants (30 s epochs, MAX_BATCH 128) hold. `IDENTITY_MONGODB_URI` must not name a relayer database. `LOGIN_RATE_LIMIT_MAX` (default 10 per 15 min per source address) and `FACE_RATE_LIMIT_MAX` (60 per minute) are the only per-address limits; a polling booth whose voters all log in from one kiosk address must raise them.
+issuer, that it is not the owner or a trustee, and that the frozen constants (30 s epochs, MAX_BATCH 128) hold. `IDENTITY_MONGODB_URI` must not name a relayer database. `CHAIN_RETRY_MAX_MS` (default 60000) caps the wait between attempts while the node is unreachable. `LOGIN_RATE_LIMIT_MAX` (default 10 per 15 min per source address) and `FACE_RATE_LIMIT_MAX` (60 per minute) are the only per-address limits; a polling booth whose voters all log in from one kiosk address must raise them.
 Conceptual hostname: `id.votechain.localhost` (loopback only; terminate TLS in front).
 
 ## Running and tests

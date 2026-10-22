@@ -120,6 +120,8 @@ const RAW = z.object({
   VOTECHAIN_V3_ADDRESS: address,
   ELECTION_ID: bytes32.optional(),
   CHAIN_CONFIRMATIONS: z.string().regex(/^[1-9][0-9]?$/, "must be an integer from 1 to 99").transform(Number).optional(),
+  /** the longest wait between two attempts while the chain node is unreachable (startup preflight and batcher backoff); nothing pending is cancelled meanwhile */
+  CHAIN_RETRY_MAX_MS: z.string().regex(/^[0-9]{3,6}$/, "must be a number of milliseconds from 100 to 600000").transform(Number).refine((n) => n >= 100 && n <= 600_000, "must be from 100 to 600000").optional(),
 
   ISSUER_PRIVATE_KEY: privateKey,
   FACE_TEMPLATE_ENCRYPTION_KEY: aes256Key,
@@ -220,7 +222,7 @@ export function loadEnv(rawEnv) {
     port: env.PORT,
     logLevel: env.LOG_LEVEL ?? (env.NODE_ENV === "test" ? "silent" : "info"),
     corsOrigins: Object.freeze(corsOrigins),
-    chain: Object.freeze({ chainId: env.CHAIN_ID, contractAddress: env.VOTECHAIN_V3_ADDRESS, electionId: env.ELECTION_ID, confirmations: env.CHAIN_CONFIRMATIONS ?? 1 }),
+    chain: Object.freeze({ chainId: env.CHAIN_ID, contractAddress: env.VOTECHAIN_V3_ADDRESS, electionId: env.ELECTION_ID, confirmations: env.CHAIN_CONFIRMATIONS ?? 1, retryMaxMs: env.CHAIN_RETRY_MAX_MS ?? 60_000 }),
     batch: Object.freeze({ maxSize: env.BATCH_MAX_SIZE ?? 128, intervalMs: env.BATCH_INTERVAL_MS ?? 2000 }),
     rateLimits: Object.freeze({ login: Object.freeze({ windowMs: 15 * 60_000, limit: env.LOGIN_RATE_LIMIT_MAX ?? 10 }), face: Object.freeze({ windowMs: 60_000, limit: env.FACE_RATE_LIMIT_MAX ?? 60 }) }),
     issuerAddress: new Wallet(env.ISSUER_PRIVATE_KEY).address,
@@ -271,5 +273,5 @@ export function describeConfig(config) {
       return "(invalid)";
     }
   };
-  return { nodeEnv: config.nodeEnv, port: config.port, corsOrigins: config.corsOrigins, mongoHost: mongoHostsOf(config.secrets.mongodbUri)?.join(",") ?? "(invalid)", rpcHost: host(config.secrets.chainRpcUrl), issuerAddress: config.issuerAddress, batch: config.batch };
+  return { nodeEnv: config.nodeEnv, port: config.port, corsOrigins: config.corsOrigins, mongoHost: mongoHostsOf(config.secrets.mongodbUri)?.join(",") ?? "(invalid)", rpcHost: host(config.secrets.chainRpcUrl), issuerAddress: config.issuerAddress, batch: config.batch, chainRetryMaxMs: config.chain.retryMaxMs };
 }

@@ -36,6 +36,7 @@ const schema = new mongoose.Schema(
     blockNumber: { type: Number, default: null },
     merkleRoot: { type: String, default: null },
     failureCode: { type: String, default: null },
+    transientFailures: { type: Number }, // PREPARED only: simulations the node could not answer (diagnosis; never a reason to give up); removed when the batch ends
 
     claimToken: { type: String, default: null }, // fences stale drivers
     lockUntil: { type: Date, default: null },

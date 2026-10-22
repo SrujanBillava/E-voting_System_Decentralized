@@ -39,7 +39,8 @@ export function composeIdentity({ config, logger, provider, clock, now = Date.no
       } catch {
         chainOk = false;
       }
-      return { status: mongo && chainOk ? "ok" : "degraded", mongo, chain: chainOk };
+      // `issuance`: whether the batcher is currently backing off a failing chain (pending requests are kept meanwhile); coarse, nothing voter-linked
+      return { status: mongo && chainOk ? "ok" : "degraded", mongo, chain: chainOk, issuance: batcher.health().status === "OK" ? "ok" : "degraded" };
     },
   };
 
