@@ -121,11 +121,11 @@ export async function bootstrap({ env = process.env, deps = {} } = {}) {
  * Start listening and wait until the socket is really bound. (Express 5's app.listen(port, callback)
  * calls the callback with the error when binding fails, so a "listening" log line there would lie.)
  */
-export function listen(app, port) {
+export function listen(app, port, host = "127.0.0.1") {
   return new Promise((resolve, reject) => {
     const server = http.createServer(app);
     server.once("error", reject);
-    server.listen(port, () => {
+    server.listen(port, host, () => {
       server.off("error", reject);
       resolve(server);
     });
@@ -193,13 +193,13 @@ async function main() {
 
   let server;
   try {
-    server = await listen(app, config.port);
+    server = await listen(app, config.port, config.host);
   } catch (err) {
     logger.error({ port: config.port, code: err?.code, name: err?.name }, "cannot listen");
     await close().catch(() => {});
     process.exit(1);
   }
-  logger.info({ port: config.port, nodeEnv: config.nodeEnv }, "api listening");
+  logger.info({ host: config.host, port: config.port, nodeEnv: config.nodeEnv }, "api listening");
 
   const shutdown = createShutdown({ server, close, logger });
   process.on("SIGINT", () => shutdown("SIGINT"));

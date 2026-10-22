@@ -126,6 +126,8 @@ const aes256Key = z
 const RAW = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: port.default(5000),
+  // Interface the API binds to. Default: loopback only (reached through the frontend's same-origin proxy). Set HOST=0.0.0.0 only to expose the API directly.
+  HOST: z.string().regex(/^[0-9a-fA-F.:]{2,45}$/, "must be an IP address such as 127.0.0.1").default("127.0.0.1"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error", "silent"]).optional(),
 
   MONGODB_URI: mongoUri,
@@ -282,6 +284,7 @@ export function loadEnv(rawEnv) {
     nodeEnv: env.NODE_ENV,
     isProduction,
     port: env.PORT,
+    host: env.HOST,
     logLevel: env.LOG_LEVEL ?? (env.NODE_ENV === "test" ? "silent" : "info"),
     corsOrigins: Object.freeze(corsOrigins),
     chain: Object.freeze({
