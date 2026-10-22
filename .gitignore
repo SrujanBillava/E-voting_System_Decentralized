@@ -70,3 +70,19 @@ dist-ssr
 *.sw?
 # Face pipeline assets prepared by `npm run face:setup` (GhostNet weights are research-licensed: never commit them)
 frontend/public/face/
+
+# Local demo startup helpers (root only)
+/scripts/
+
+# Research materials: manuscript sources and drafts (.docx/.pdf), evaluation reports, reference checks, benchmark data, figures, datasets and experiment
+# runs. They are kept locally and are deliberately NOT part of this repository.
+/research-paper/
+
+# Output of the identity-v3 gas measurement script (node test/chain/batch-gas.measure.js writes batch-gas-<pattern>.json where it runs); regenerated on demand
+batch-gas-*.json
+
+# Temporary, backup and scratch files
+*.tmp
+*.bak
+*.orig
+*.rej
